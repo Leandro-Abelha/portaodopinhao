@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -4 120 208" role="img" aria-labelledby="t">
   <title id="t">Portal do Pinhão</title>
   <g id="icon">
-    <path d="M36 26 L64 26 L86 60 C84 112 64 162 50 198 Z" fill="#06603A"/>
+    <path d="M36 26 L64 26 L86 60 C84 112 64 162 50 198 Z" fill="#4A2E1A"/>
     <path d="M36 26 L64 26 L86 60 C84 112 64 162 50 198 Z" fill="#000" fill-opacity="0"/>
-    <path d="M36 26 L50 26 L50 198 C36 162 16 112 14 60 Z" fill="#0E8A4F"/>
+    <path d="M36 26 L50 26 L50 198 C36 162 16 112 14 60 Z" fill="#7C4A24"/>
     <path d="M60 40 L78 64 C76 96 68 122 58 150 C62 118 62 78 60 40 Z" fill="#FFFFFF" fill-opacity=".14"/>
     <path d="M40 4 H60 L63 20 H37 Z" fill="#D71F26"/>
     <path d="M36 26 H64" stroke="#101814" stroke-opacity="0" />
