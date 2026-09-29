@@ -26,8 +26,37 @@ const FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link 
 const stripTags = (h) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 export const excerptOf = (a) => a.summary || stripTags(a.body).slice(0, 160);
 
+/* =============== VÍDEO (YouTube, Instagram, Facebook) =============== */
+/* Reconhece o link colado e devolve como embutir — só iframe, sem script de terceiro (mais simples e mais seguro) */
+export function videoEmbed(raw) {
+  const url = String(raw || '').trim();
+  if (!url) return null;
+  let m;
+  if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/)))
+    return { platform: 'youtube', src: `https://www.youtube.com/embed/${m[1]}` };
+  if ((m = url.match(/instagram\.com\/(p|reel|reels|tv)\/([\w-]+)/)))
+    return { platform: 'instagram', src: `https://www.instagram.com/${m[1] === 'reels' ? 'reel' : m[1]}/${m[2]}/embed` };
+  if (/facebook\.com\/.+\/videos\/|facebook\.com\/watch\/?\?|facebook\.com\/reel\/|fb\.watch\//.test(url))
+    return { platform: 'facebook', src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false` };
+  return null;
+}
+
+/* =============== REDES SOCIAIS =============== */
+export const NETWORK_LABEL = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube' };
+const SOCIAL_ICON = {
+  facebook: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.2-1.5 1.6-1.5h1.7V3.7C15.9 3.6 15 3.5 13.9 3.5c-2.7 0-4.4 1.6-4.4 4.6V10H6.8v3.1h2.7v8h4z"/></svg>`,
+  instagram: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>`,
+  youtube: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor"/></svg>`,
+};
+/* Um botão por rede com link preenchido; sem foto cadastrada, mostra o ícone da rede */
+export function socialButtons(links) {
+  const active = (links || []).filter((s) => s.url);
+  if (!active.length) return '';
+  return `<div class="social" aria-label="Redes sociais">${active.map((s) => `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : `<span class="social-ico">${SOCIAL_ICON[s.network]}</span>`}<span>${esc(s.name || NETWORK_LABEL[s.network])}</span></a>`).join('')}</div>`;
+}
+
 /* =============== SITE PÚBLICO =============== */
-export function siteLayout({ title, description = 'Seu portal de informação. Notícias de Curitiba e do Paraná.', body, cats, current = '', q = '', image = '', type = 'website' }) {
+export function siteLayout({ title, description = 'Seu portal de informação. Notícias de Curitiba e do Paraná.', body, cats, social = [], current = '', q = '', image = '', type = 'website' }) {
   const t = title ? `${esc(title)} | Portal do Pinhão` : 'Portal do Pinhão – Notícias de Curitiba e do Paraná';
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${t}</title><meta name="description" content="${esc(description)}">
@@ -39,7 +68,7 @@ export function siteLayout({ title, description = 'Seu portal de informação. N
 <form class="busca" action="/busca" role="search"><label class="sr" for="q">Buscar notícias</label><input id="q" name="q" type="search" placeholder="Buscar notícias" value="${esc(q)}"><button type="submit">Buscar</button></form></div></div></header>
 <div class="menu"><div class="menu-in"><nav aria-label="Editorias"><a href="/"${!current ? ' aria-current="page"' : ''}>Início</a>${cats.map((c) => `<a href="/categoria/${esc(c.slug)}"${current === c.slug ? ' aria-current="page"' : ''}>${esc(c.name)}</a>`).join('')}</nav></div></div>
 <main id="conteudo" class="wrap">${body}</main>
-<footer class="rodape"><div class="rodape-in"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p><p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
+<footer class="rodape"><div class="rodape-in"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p>${socialButtons(social)}<p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
 </body></html>`;
 }
 
@@ -67,17 +96,19 @@ ${items.length ? `<div class="cards">${items.map(cardHtml).join('')}</div>` : `<
 }
 
 export function articleView(a, related) {
+  const video = videoEmbed(a.video_url);
   return `<article class="materia"><a class="tag" href="/categoria/${esc(a.cat_slug || '')}">${esc(a.cat_name || '')}</a>
 <h1>${esc(a.title)}</h1>${a.summary ? `<p class="linha-fina">${esc(a.summary)}</p>` : ''}
 <p class="meta">${a.author ? `Por ${esc(a.author)} · ` : ''}<time datetime="${esc(a.published_at)}">${fmtFull(a.published_at)}</time></p>
 ${a.image ? `<figure><img src="${esc(imgUrl(a.image))}" alt="${esc(a.title)}">${a.image_credit ? `<figcaption>${esc(a.image_credit)}</figcaption>` : ''}</figure>` : ''}
+${video ? `<div class="video-embed video-${video.platform}"><iframe src="${esc(video.src)}" title="Vídeo da notícia" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
 <div class="corpo">${a.body}</div>
 ${a.tags ? `<p class="tags">Assuntos: ${a.tags.split(',').map((t) => esc(t.trim())).filter(Boolean).join(', ')}</p>` : ''}</article>
 ${related.length ? `<section><div class="secao"><h2>Leia também</h2></div><div class="cards">${related.map(cardHtml).join('')}</div></section>` : ''}`;
 }
 
 /* =============== PAINEL ADMIN =============== */
-const NAV = [['/admin', 'Visão geral'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/midia', 'Mídia'], ['/admin/conta', 'Minha conta']];
+const NAV = [['/admin', 'Visão geral'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais'], ['/admin/conta', 'Minha conta']];
 
 export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
@@ -145,6 +176,7 @@ export function articleForm({ a, cats, csrf, erros = [] }) {
 <div><h3>Imagem de capa</h3>${a.image ? `<div class="prev"><img src="${esc(imgUrl(a.image))}" alt="Imagem atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover imagem</label></div>` : ''}
 <label for="img">${a.image ? 'Trocar imagem' : 'Enviar imagem'}</label><input id="img" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 5 MB. Ideal: proporção 16:9.</p>
 <label for="cred">Crédito da foto</label><input id="cred" name="image_credit" type="text" value="${esc(a.image_credit)}" placeholder="Foto: nome"></div>
+<div><h3>Vídeo (opcional)</h3><label for="video">Link do YouTube, Instagram ou Facebook</label><input id="video" name="video_url" type="url" value="${esc(a.video_url || '')}" placeholder="https://..."><p class="ajuda">Cole o link da página do vídeo. Ele aparece embutido na notícia publicada, acima do texto.</p></div>
 <div><h3>Organização</h3><label for="tags">Tags</label><input id="tags" name="tags" type="text" value="${esc(a.tags)}" placeholder="curitiba, cultura"><label for="autor">Autor</label><input id="autor" name="author" type="text" value="${esc(a.author)}" placeholder="Redação do Portal"></div>
 </aside></div></form>`;
 }
@@ -159,6 +191,20 @@ export function mediaView({ files, csrf }) {
   return `<div class="topo"><h1>Mídia</h1></div>
 <form class="caixa" method="post" enctype="multipart/form-data" action="/admin/midia" style="margin-bottom:20px"><input type="hidden" name="_csrf" value="${esc(csrf)}"><label for="arq" style="margin-top:0">Enviar imagem</label><input id="arq" name="image" type="file" accept="image/jpeg,image/png,image/webp" required><p class="ajuda">JPG, PNG ou WEBP, até 5 MB.</p><div class="acoes-form" style="justify-content:flex-start"><button class="btn pri">Enviar</button></div></form>
 ${files.length ? `<div class="grade">${files.map((f) => `<figure><img src="${esc(imgUrl(f.name))}" alt="" loading="lazy"><code>${esc(f.name)}</code>${f.used ? '<p class="ajuda">Em uso em uma notícia</p>' : `<form method="post" action="/admin/midia/apagar" data-confirm="Apagar esta imagem?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="name" value="${esc(f.name)}"><button class="btn peq perigo" style="margin-top:6px">Apagar</button></form>`}</figure>`).join('')}</div>` : `<p class="vazio">Nenhuma imagem enviada ainda.</p>`}`;
+}
+
+export function socialView({ links, csrf }) {
+  return `<div class="topo"><h1>Redes sociais</h1></div>
+<p class="ajuda" style="margin:-8px 0 18px 0">Preencha o link da página e o nome que deve aparecer no botão. A foto é opcional — sem ela, aparece o ícone da rede. Deixe o link em branco para o botão não aparecer no site.</p>
+<form method="post" enctype="multipart/form-data" action="/admin/redes"><input type="hidden" name="_csrf" value="${esc(csrf)}">
+<div class="redes">${links.map((s) => `<div class="caixa">
+<h3 style="margin-top:0">${NETWORK_LABEL[s.network]}</h3>
+<label for="${s.network}_url" style="margin-top:0">Link da página</label><input id="${s.network}_url" name="${s.network}_url" type="url" value="${esc(s.url)}" placeholder="https://${s.network}.com/…">
+<label for="${s.network}_name">Nome exibido</label><input id="${s.network}_name" name="${s.network}_name" type="text" maxlength="60" value="${esc(s.name)}" placeholder="${NETWORK_LABEL[s.network]}">
+${s.photo ? `<label style="margin-top:14px">Foto atual</label><div class="prev"><img src="${esc(imgUrl(s.photo))}" alt="Foto atual"><label class="check"><input type="checkbox" name="${s.network}_remove" value="1"> Remover foto</label></div>` : ''}
+<label for="${s.network}_photo">${s.photo ? 'Trocar foto' : 'Foto de perfil (opcional)'}</label><input id="${s.network}_photo" name="${s.network}_photo" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: imagem quadrada.</p>
+</div>`).join('')}</div>
+<div class="acoes-form"><button class="btn pri">Salvar redes sociais</button></div></form>`;
 }
 
 export function accountView({ user, csrf }) {

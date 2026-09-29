@@ -21,7 +21,7 @@ app.use((req, res, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Content-Security-Policy': `default-src 'self'; img-src 'self' data: ${SB_URL}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'`,
+    'Content-Security-Policy': `default-src 'self'; img-src 'self' data: ${SB_URL}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; frame-src https://www.youtube.com https://www.facebook.com https://www.instagram.com; frame-ancestors 'none'; form-action 'self'; base-uri 'self'`,
   });
   next();
 });
@@ -53,6 +53,16 @@ function takeUpload(req, res, next) {
     req.uploadError = null;
     if (err) req.uploadError = err.code === 'LIMIT_FILE_SIZE' ? 'Imagem muito grande: o limite é 4 MB.' : 'Não foi possível enviar a imagem.';
     else if (req.file && !realImage(req.file)) { req.file = null; req.uploadError = 'Imagem inválida: use JPG, PNG ou WEBP.'; }
+    next();
+  });
+}
+const NETWORKS = ['facebook', 'instagram', 'youtube'];
+const uploadSocial = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMG, files: 3 }, fileFilter: (_r, f, cb) => cb(null, Boolean(EXT[f.mimetype])) });
+function takeSocialUpload(req, res, next) {
+  uploadSocial.fields(NETWORKS.map((n) => ({ name: `${n}_photo`, maxCount: 1 })))(req, res, (err) => {
+    req.uploadError = null;
+    if (err) { req.uploadError = err.code === 'LIMIT_FILE_SIZE' ? 'Imagem muito grande: o limite é 4 MB.' : 'Não foi possível enviar a imagem.'; return next(); }
+    for (const key of Object.keys(req.files || {})) if (!realImage(req.files[key][0])) { req.files[key] = null; req.uploadError = 'Imagem inválida: use JPG, PNG ou WEBP.'; }
     next();
   });
 }
@@ -105,9 +115,10 @@ const plain = (h) => h.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 const cleanLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
 const cats = () => all('SELECT * FROM categories ORDER BY position, id');
+const socialRows = () => all(`SELECT * FROM social_links ORDER BY CASE network WHEN 'facebook' THEN 1 WHEN 'instagram' THEN 2 ELSE 3 END`);
 const SELECT_A = `SELECT a.*, c.name cat_name, c.slug cat_slug FROM articles a LEFT JOIN categories c ON c.id = a.category_id`;
 const ORDER = 'ORDER BY a.published_at DESC, a.id DESC';
-const site = async (res, opts) => res.send(V.siteLayout({ cats: await cats(), ...opts }));
+const site = async (res, opts) => res.send(V.siteLayout({ cats: await cats(), social: await socialRows(), ...opts }));
 
 /* =============== SITE PÚBLICO =============== */
 const PER_PAGE = 15;
@@ -164,7 +175,7 @@ app.post('/admin/sair', requireAuth, checkCsrf, async (req, res) => {
 
 app.use('/admin', requireAuth);
 const page = (req, res, o) => res.send(V.adminLayout({ user: req.user, csrf: req.csrf, ...o }));
-const flash = (req) => ({ msg: { ok: 'Feito.', pub: 'Notícia publicada com sucesso.', draft: 'Rascunho salvo.', del: 'Notícia apagada.', ag: 'Notícia agendada com sucesso.', cat: 'Categoria salva.', conta: 'Conta atualizada.', img: 'Imagem enviada.' }[req.query.ok] || '' });
+const flash = (req) => ({ msg: { ok: 'Feito.', pub: 'Notícia publicada com sucesso.', draft: 'Rascunho salvo.', del: 'Notícia apagada.', ag: 'Notícia agendada com sucesso.', cat: 'Categoria salva.', conta: 'Conta atualizada.', img: 'Imagem enviada.', redes: 'Redes sociais atualizadas.' }[req.query.ok] || '' });
 
 /* =============== ADMIN: painel =============== */
 app.get('/admin', async (req, res) => {
@@ -186,7 +197,7 @@ app.get('/admin/noticias', async (req, res) => {
   page(req, res, { title: 'Todas as notícias', crumb: 'NOTÍCIAS / TODAS', active: '/admin/noticias', body: V.articlesListView({ items, filter, csrf: req.csrf }), ...flash(req) });
 });
 
-const blank = { title: '', summary: '', body: '', category_id: '', tags: '', author: '', image: '', image_credit: '', status: 'draft', featured: 0 };
+const blank = { title: '', summary: '', body: '', category_id: '', tags: '', author: '', image: '', image_credit: '', video_url: '', status: 'draft', featured: 0 };
 const renderForm = async (req, res, a, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: a.id ? 'Editar notícia' : 'Nova notícia', crumb: a.id ? 'NOTÍCIAS / EDITAR' : 'NOTÍCIAS / NOVA PUBLICAÇÃO', active: a.id ? '/admin/noticias' : '/admin/noticias/nova',
     erro: erros.map(V.esc).join('<br>'), body: V.articleForm({ a, cats: await cats(), csrf: req.csrf }) }));
@@ -206,14 +217,16 @@ async function saveArticle(req, res, id) {
   const publish = b.action === 'publish';
   const body = cleanBody(b.body);
   const catId = (await one('SELECT id FROM categories WHERE id = ?', [Number(b.category_id) || 0]))?.id || null;
+  const videoUrl = cleanLine(b.video_url, 300);
   const a = { ...(old || blank), id: old?.id, title: cleanLine(b.title, 160), summary: cleanLine(b.summary, 220), body, category_id: catId, tags: cleanLine(b.tags, 120), author: cleanLine(b.author, 80),
-    image: old?.image || '', image_credit: cleanLine(b.image_credit, 120), featured: b.featured ? 1 : 0, status: publish ? 'published' : 'draft' };
+    image: old?.image || '', image_credit: cleanLine(b.image_credit, 120), video_url: videoUrl, featured: b.featured ? 1 : 0, status: publish ? 'published' : 'draft' };
 
   const erros = [];
   if (req.uploadError) erros.push(req.uploadError + ' O conteúdo preenchido permanece.');
   if (!a.title) erros.push('Preencha o título.');
   if (publish && !catId) erros.push('Escolha uma categoria para publicar.');
   if (publish && !plain(body)) erros.push('Escreva o texto da notícia para publicar.');
+  if (videoUrl && !V.videoEmbed(videoUrl)) erros.push('Não reconheci esse link de vídeo. Cole um link do YouTube, Instagram ou Facebook.');
 
   let when = old?.published_at || null;
   if (publish) {
@@ -231,9 +244,9 @@ async function saveArticle(req, res, id) {
   if (old && old.status === 'published' && old.title !== a.title) a.slug = old.slug; // mantém o endereço já divulgado
   if (a.featured) await run('UPDATE articles SET featured = 0');
 
-  const vals = [a.title, a.slug, a.summary, a.body, a.category_id, a.image || null, a.image_credit, a.tags, a.author, a.status, a.featured, when];
-  if (old) await run(`UPDATE articles SET title=?, slug=?, summary=?, body=?, category_id=?, image=?, image_credit=?, tags=?, author=?, status=?, featured=?, published_at=?, updated_at=now() WHERE id=?`, [...vals, id]);
-  else await run(`INSERT INTO articles (title, slug, summary, body, category_id, image, image_credit, tags, author, status, featured, published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, vals);
+  const vals = [a.title, a.slug, a.summary, a.body, a.category_id, a.image || null, a.image_credit, a.tags, a.author, a.status, a.featured, when, a.video_url];
+  if (old) await run(`UPDATE articles SET title=?, slug=?, summary=?, body=?, category_id=?, image=?, image_credit=?, tags=?, author=?, status=?, featured=?, published_at=?, video_url=?, updated_at=now() WHERE id=?`, [...vals, id]);
+  else await run(`INSERT INTO articles (title, slug, summary, body, category_id, image, image_credit, tags, author, status, featured, published_at, video_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, vals);
   res.redirect(`/admin/noticias?ok=${!publish ? 'draft' : b.quando === 'schedule' ? 'ag' : 'pub'}`);
 }
 app.post('/admin/noticias', takeUpload, checkCsrf, (req, res) => saveArticle(req, res, 0));
@@ -279,6 +292,22 @@ app.post('/admin/midia/apagar', checkCsrf, async (req, res) => {
   const name = String(req.body.name || '');
   if (!await one('SELECT 1 x FROM articles WHERE image = ?', [name])) await removeImage(name);
   res.redirect('/admin/midia?ok=ok');
+});
+
+app.get('/admin/redes', async (req, res) => page(req, res, { title: 'Redes sociais', crumb: 'REDES SOCIAIS', active: '/admin/redes', body: V.socialView({ links: await socialRows(), csrf: req.csrf }), ...flash(req) }));
+app.post('/admin/redes', takeSocialUpload, checkCsrf, async (req, res) => {
+  if (req.uploadError)
+    return page(req, res, { title: 'Redes sociais', crumb: 'REDES SOCIAIS', active: '/admin/redes', erro: V.esc(req.uploadError), body: V.socialView({ links: await socialRows(), csrf: req.csrf }) });
+  for (const n of NETWORKS) {
+    const old = await one('SELECT photo FROM social_links WHERE network = ?', [n]);
+    let photo = old?.photo || null;
+    const file = req.files?.[`${n}_photo`]?.[0];
+    if (file) { await removeImage(photo); photo = await storeImage(file); }
+    else if (req.body[`${n}_remove`]) { await removeImage(photo); photo = null; }
+    await run('UPDATE social_links SET url=?, name=?, photo=?, updated_at=now() WHERE network=?',
+      [cleanLine(req.body[`${n}_url`], 300), cleanLine(req.body[`${n}_name`], 60), photo, n]);
+  }
+  res.redirect('/admin/redes?ok=redes');
 });
 
 app.get('/admin/conta', (req, res) => page(req, res, { title: 'Minha conta', crumb: 'CONTA', active: '/admin/conta', body: V.accountView({ user: req.user, csrf: req.csrf }), ...flash(req) }));

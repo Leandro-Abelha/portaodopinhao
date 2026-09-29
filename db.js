@@ -57,4 +57,11 @@ export const setup = () => (ready ??= (async () => {
   if (ADMIN_EMAIL && ADMIN_PASSWORD && !Number((await one('SELECT COUNT(*) c FROM users')).c))
     await run('INSERT INTO users (email, name, password_hash) VALUES (?,?,?) ON CONFLICT DO NOTHING',
       [ADMIN_EMAIL.toLowerCase(), 'Redação Portal do Pinhão', hashPassword(ADMIN_PASSWORD)]);
+
+  await run(`CREATE TABLE IF NOT EXISTS social_links (
+    network text PRIMARY KEY CHECK (network IN ('facebook','instagram','youtube')),
+    url text DEFAULT '', name text DEFAULT '', photo text, updated_at timestamptz DEFAULT now()
+  )`);
+  for (const n of ['facebook', 'instagram', 'youtube']) await run('INSERT INTO social_links (network) VALUES (?) ON CONFLICT DO NOTHING', [n]);
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS video_url text DEFAULT ''`);
 })().catch((e) => { ready = undefined; throw e; }));
