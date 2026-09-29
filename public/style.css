@@ -24,6 +24,11 @@ img{max-width:100%;display:block}
 .busca input{border:0;padding:8px 12px;font:15px var(--tx);width:190px;background:#fff}
 .busca button{border:0;background:var(--preto);color:#fff;padding:0 14px;cursor:pointer;font:700 14px var(--tx)}
 .busca button:hover{background:var(--verde)}
+.social-topo{display:flex;gap:8px;margin-left:18px}
+.social-topo a{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--linha);display:flex;align-items:center;justify-content:center;color:var(--preto);overflow:hidden;flex-shrink:0;transition:border-color .15s,color .15s}
+.social-topo a:hover{border-color:var(--verde);color:var(--verde)}
+.social-topo svg{width:16px;height:16px}
+.social-topo img{width:100%;height:100%;object-fit:cover}
 .menu{background:var(--verde);position:sticky;top:0;z-index:5;border-bottom:3px solid var(--verm)}
 .menu-in{max-width:1120px;margin:0 auto;padding:0 20px}
 .menu nav{display:flex;overflow-x:auto;scrollbar-width:none}
@@ -47,6 +52,10 @@ img{max-width:100%;display:block}
 .apoio h3{font:700 25px/1.08 var(--hd);margin-top:6px}
 .apoio h3 a:hover,.lead h2 a:hover,.cards h3 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
 .apoio .foto{margin-bottom:10px;aspect-ratio:3/2}
+.faixa-social{background:var(--preto);border-top:4px solid var(--verde-vivo);border-bottom:4px solid var(--verm);width:100vw;margin:32px calc(50% - 50vw)}
+.faixa-social-in{max-width:1120px;margin:0 auto;padding:24px 20px;display:flex;align-items:center;gap:16px 32px;flex-wrap:wrap}
+.faixa-social-in h2{font:800 22px var(--hd);letter-spacing:.05em;text-transform:uppercase;color:#fff;white-space:nowrap;margin:0}
+.faixa-social-in .social{flex:1}
 .secao{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--linha);margin-top:36px;padding-top:10px}
 .secao h2{font:800 22px var(--hd);letter-spacing:.06em;text-transform:uppercase}
 .secao a{font-size:14px;color:var(--verde);font-weight:600}

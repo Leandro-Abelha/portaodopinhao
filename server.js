@@ -118,7 +118,7 @@ const cats = () => all('SELECT * FROM categories ORDER BY position, id');
 const socialRows = () => all(`SELECT * FROM social_links ORDER BY CASE network WHEN 'facebook' THEN 1 WHEN 'instagram' THEN 2 ELSE 3 END`);
 const SELECT_A = `SELECT a.*, c.name cat_name, c.slug cat_slug FROM articles a LEFT JOIN categories c ON c.id = a.category_id`;
 const ORDER = 'ORDER BY a.published_at DESC, a.id DESC';
-const site = async (res, opts) => res.send(V.siteLayout({ cats: await cats(), social: await socialRows(), ...opts }));
+const site = async (res, opts) => res.send(V.siteLayout({ cats: await cats(), social: opts.social || await socialRows(), ...opts }));
 
 /* =============== SITE PÚBLICO =============== */
 const PER_PAGE = 15;
@@ -130,7 +130,8 @@ app.get('/', async (req, res) => {
   const feed = rest.slice(2);
   const pages = Math.max(1, Math.ceil(feed.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, parseInt(req.query.pagina, 10) || 1));
-  await site(res, { body: V.homeView({ lead, apoio, feed: feed.slice((page - 1) * PER_PAGE, page * PER_PAGE), page, pages }) });
+  const social = await socialRows();
+  await site(res, { social, body: V.homeView({ lead, apoio, feed: feed.slice((page - 1) * PER_PAGE, page * PER_PAGE), page, pages, social }) });
 });
 
 app.get('/noticia/:slug', async (req, res, next) => {

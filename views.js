@@ -54,6 +54,17 @@ export function socialButtons(links) {
   if (!active.length) return '';
   return `<div class="social" aria-label="Redes sociais">${active.map((s) => `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : `<span class="social-ico">${SOCIAL_ICON[s.network]}</span>`}<span>${esc(s.name || NETWORK_LABEL[s.network])}</span></a>`).join('')}</div>`;
 }
+/* Só os ícones, discretos, para o cabeçalho — aparece em toda página */
+export function socialIconsCompact(links) {
+  const active = (links || []).filter((s) => s.url);
+  if (!active.length) return '';
+  return `<div class="social-topo" aria-label="Redes sociais">${active.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(s.name || NETWORK_LABEL[s.network])} no ${NETWORK_LABEL[s.network]}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : SOCIAL_ICON[s.network]}</a>`).join('')}</div>`;
+}
+/* Faixa de destaque na home, logo abaixo da manchete */
+export function socialBand(links) {
+  if (!(links || []).some((s) => s.url)) return '';
+  return `<section class="faixa-social"><div class="faixa-social-in"><h2>Acompanhe o Portal do Pinhão</h2>${socialButtons(links)}</div></section>`;
+}
 
 /* =============== SITE PÚBLICO =============== */
 export function siteLayout({ title, description = 'Seu portal de informação. Notícias de Curitiba e do Paraná.', body, cats, social = [], current = '', q = '', image = '', type = 'website' }) {
@@ -65,7 +76,7 @@ export function siteLayout({ title, description = 'Seu portal de informação. N
 <a class="skip" href="#conteudo">Ir para o conteúdo</a>
 <header class="topo"><div class="topo-in"><a class="marca" href="/"><img src="/logo-claro.svg" alt="Portal do Pinhão – seu portal de informação"></a>
 <div class="topo-dir"><span class="data">${esc(todayLabel())}</span>
-<form class="busca" action="/busca" role="search"><label class="sr" for="q">Buscar notícias</label><input id="q" name="q" type="search" placeholder="Buscar notícias" value="${esc(q)}"><button type="submit">Buscar</button></form></div></div></header>
+<form class="busca" action="/busca" role="search"><label class="sr" for="q">Buscar notícias</label><input id="q" name="q" type="search" placeholder="Buscar notícias" value="${esc(q)}"><button type="submit">Buscar</button></form></div>${socialIconsCompact(social)}</div></header>
 <div class="menu"><div class="menu-in"><nav aria-label="Editorias"><a href="/"${!current ? ' aria-current="page"' : ''}>Início</a>${cats.map((c) => `<a href="/categoria/${esc(c.slug)}"${current === c.slug ? ' aria-current="page"' : ''}>${esc(c.name)}</a>`).join('')}</nav></div></div>
 <main id="conteudo" class="wrap">${body}</main>
 <footer class="rodape"><div class="rodape-in"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p>${socialButtons(social)}<p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
@@ -75,12 +86,13 @@ export function siteLayout({ title, description = 'Seu portal de informação. N
 const foto = (a, alt = true) => a.image ? `<div class="foto"><img src="${esc(imgUrl(a.image))}" alt="${alt ? esc(a.title) : ''}" loading="lazy"></div>` : `<div class="foto" aria-hidden="true">PORTAL DO PINHÃO</div>`;
 const link = (a) => `/noticia/${esc(a.slug)}`;
 
-export function homeView({ lead, apoio, feed, page, pages }) {
+export function homeView({ lead, apoio, feed, page, pages, social = [] }) {
   if (!lead) return `<p class="vazio">Ainda não há notícias publicadas.</p>`;
   return `<div class="destaque">
   <article class="lead">${foto(lead)}<a class="tag" href="/categoria/${esc(lead.cat_slug || '')}">${esc(lead.cat_name || '')}</a>
     <h2><a href="${link(lead)}">${esc(lead.title)}</a></h2><p class="res">${esc(excerptOf(lead))}</p></article>
   <aside class="apoio" aria-label="Outras notícias em destaque">${apoio.map((a) => `<article>${a.image ? foto(a, false) : ''}<a class="tag" href="/categoria/${esc(a.cat_slug || '')}">${esc(a.cat_name || '')}</a><h3><a href="${link(a)}">${esc(a.title)}</a></h3></article>`).join('')}</aside></div>
+${socialBand(social)}
 ${feed.length ? `<section aria-labelledby="ult"><div class="secao"><h2 id="ult">Últimas notícias</h2></div><div class="feed">${feed.map(feedCard).join('')}</div>${pager(page, pages)}</section>` : ''}`;
 }
 /* card do feed: o card inteiro é um link para a notícia */
