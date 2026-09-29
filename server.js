@@ -275,6 +275,18 @@ app.post('/admin/categorias/:id/apagar', checkCsrf, async (req, res) => {
   if (!await one('SELECT 1 x FROM articles WHERE category_id = ?', [id])) await run('DELETE FROM categories WHERE id = ?', [id]);
   res.redirect('/admin/categorias?ok=cat');
 });
+app.post('/admin/categorias/:id/mover', checkCsrf, async (req, res) => {
+  const id = Number(req.params.id) || 0;
+  const passo = req.body.direcao === 'cima' ? -1 : 1;
+  const ordenadas = await all('SELECT id, position FROM categories ORDER BY position, id');
+  const i = ordenadas.findIndex((c) => c.id === id);
+  const j = i + passo;
+  if (i > -1 && j > -1 && j < ordenadas.length) {
+    await run('UPDATE categories SET position = ? WHERE id = ?', [ordenadas[j].position, ordenadas[i].id]);
+    await run('UPDATE categories SET position = ? WHERE id = ?', [ordenadas[i].position, ordenadas[j].id]);
+  }
+  res.redirect('/admin/categorias?ok=cat');
+});
 
 async function listMedia() {
   const r = await sb('object/list/uploads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix: '', limit: 200, sortBy: { column: 'created_at', order: 'desc' } }) });

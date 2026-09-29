@@ -194,9 +194,12 @@ export function articleForm({ a, cats, csrf, erros = [] }) {
 }
 
 export function categoriesView({ cats, csrf }) {
-  return `<div class="topo"><h1>Categorias</h1></div><div class="duas"><div><table><thead><tr><th>Nome</th><th>Notícias</th><th></th></tr></thead><tbody>${cats.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${c.total}</td><td class="acoes">
-<form method="post" action="/admin/categorias/${c.id}/apagar" data-confirm="Apagar a categoria &quot;${esc(c.name)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo"${c.total ? ' disabled title="Mova as notícias antes de apagar"' : ''}>Apagar</button></form></td></tr>`).join('')}</tbody></table></div>
-<form class="caixa" method="post" action="/admin/categorias"><input type="hidden" name="_csrf" value="${esc(csrf)}"><h2>Nova categoria</h2><label for="nome">Nome</label><input id="nome" name="name" type="text" required maxlength="40"><p class="ajuda">Aparece no menu do site, na ordem de criação.</p><div class="acoes-form"><button class="btn pri">Criar categoria</button></div></form></div>`;
+  const mover = (c, i) => `<form method="post" action="/admin/categorias/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="cima"><button class="btn peq" ${i === 0 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para cima" title="Mover para cima">↑</button></form>
+<form method="post" action="/admin/categorias/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="baixo"><button class="btn peq" ${i === cats.length - 1 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para baixo" title="Mover para baixo">↓</button></form>`;
+  return `<div class="topo"><h1>Categorias</h1></div><div class="duas"><div><table><thead><tr><th>Ordem</th><th>Nome</th><th>Notícias</th><th></th></tr></thead><tbody>${cats.map((c, i) => `<tr><td class="ordem">${mover(c, i)}</td><td><b>${esc(c.name)}</b></td><td>${c.total}</td><td class="acoes">
+<form method="post" action="/admin/categorias/${c.id}/apagar" data-confirm="Apagar a categoria &quot;${esc(c.name)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo"${c.total ? ' disabled title="Mova as notícias antes de apagar"' : ''}>Apagar</button></form></td></tr>`).join('')}</tbody></table>
+<p class="ajuda">A ordem aqui é a mesma do menu do site.</p></div>
+<form class="caixa" method="post" action="/admin/categorias"><input type="hidden" name="_csrf" value="${esc(csrf)}"><h2>Nova categoria</h2><label for="nome">Nome</label><input id="nome" name="name" type="text" required maxlength="40"><p class="ajuda">Aparece no fim do menu do site; use as setas para reordenar.</p><div class="acoes-form"><button class="btn pri">Criar categoria</button></div></form></div>`;
 }
 
 export function mediaView({ files, csrf }) {

@@ -27,6 +27,8 @@ h2{font:700 21px var(--hd);margin:0 0 8px}
 .btn.perigo{color:var(--verm);border-color:#e8b9bc}
 .btn.perigo:hover{background:var(--verm);color:#fff;border-color:var(--verm)}
 .btn.peq{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn:disabled:hover{border-color:#c5cdd0}
 .msg{padding:11px 14px;margin-bottom:16px;border-left:4px solid var(--verde);background:#e7f5ed;font-weight:500}
 .msg.erro{border-color:var(--verm);background:#fbeaeb}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
