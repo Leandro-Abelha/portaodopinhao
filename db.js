@@ -77,4 +77,5 @@ export const setup = () => (ready ??= (async () => {
     position int NOT NULL DEFAULT 0, active boolean NOT NULL DEFAULT true, created_at timestamptz DEFAULT now()
   )`);
   await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS columnist_id integer REFERENCES columnists(id) ON DELETE SET NULL`);
+  await run(`ALTER TABLE columnists ADD COLUMN IF NOT EXISTS books text DEFAULT ''`);
 })().catch((e) => { ready = undefined; throw e; }));

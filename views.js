@@ -133,7 +133,8 @@ export function columnistView({ col, items, page, pages }) {
 <span class="colunista-perfil-foto">${colunistaFoto(col)}</span>
 <div><p class="tag">Coluna de</p><h1>${esc(col.name)}</h1>${col.tagline ? `<p class="linha-fina">${esc(col.tagline)}</p>` : ''}
 ${col.bio ? `<div class="colunista-bio">${col.bio.split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
-${col.email ? `<p class="meta"><a href="mailto:${esc(col.email)}">${esc(col.email)}</a></p>` : ''}</div></div>
+${col.email ? `<p class="meta"><a href="mailto:${esc(col.email)}">${esc(col.email)}</a></p>` : ''}
+${col.books ? `<div class="colunista-livros"><h3>Livros publicados</h3><ul>${col.books.split(/\n+/).filter(Boolean).map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>` : ''}</div></div>
 ${items.length ? `<div class="secao"><h2>Textos de ${esc(col.name)}</h2></div><div class="cards">${items.map(cardHtml).join('')}</div>${pager(page, pages, `/colunistas/${col.slug}`)}` : `<p class="vazio">Ainda não há textos publicados.</p>`}`;
 }
 
@@ -233,7 +234,7 @@ ${items.length ? `<table><thead><tr><th>Ordem</th><th></th><th>Nome</th><th>Text
   : `<p class="vazio">Nenhum colunista cadastrado. <a href="/admin/colunistas/novo"><b>Cadastre o primeiro colunista</b></a>.</p>`}`;
 }
 
-export function columnistForm({ c, csrf }) {
+export function columnistForm({ c, arts = [], csrf }) {
   const isNew = !c.id;
   return `<form method="post" enctype="multipart/form-data" action="${isNew ? '/admin/colunistas' : `/admin/colunistas/${c.id}`}">
 <input type="hidden" name="_csrf" value="${esc(csrf)}">
@@ -243,6 +244,7 @@ export function columnistForm({ c, csrf }) {
 <label for="tema">Tema da coluna</label><input id="tema" name="tagline" type="text" maxlength="120" value="${esc(c.tagline || '')}" placeholder="Ex.: Crônicas do Dia a Dia">
 <label for="email">E-mail (opcional)</label><input id="email" name="email" type="email" maxlength="120" value="${esc(c.email || '')}">
 <label for="bio">Sobre o colunista</label><textarea id="bio" name="bio" rows="8" placeholder="Uma breve biografia ou referência sobre o colunista.">${esc(c.bio || '')}</textarea>
+<label for="books">Livros publicados (um por linha, opcional)</label><textarea id="books" name="books" rows="5" placeholder="Título do livro — editora, ano">${esc(c.books || '')}</textarea>
 <label class="check"><input type="checkbox" name="active" value="1"${c.active ? ' checked' : ''}> Colunista ativo (aparece no site)</label>
 <div class="acoes-form"><button class="btn pri">${isNew ? 'Criar colunista' : 'Salvar alterações'}</button></div>
 </div>
@@ -250,7 +252,8 @@ export function columnistForm({ c, csrf }) {
 <h2 style="margin-top:0">Foto</h2>
 ${c.photo ? `<div class="prev"><img src="${esc(imgUrl(c.photo))}" alt="Foto atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover foto</label></div>` : ''}
 <label for="img" style="margin-top:${c.photo ? '14px' : '0'}">${c.photo ? 'Trocar foto' : 'Enviar foto'}</label><input id="img" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: foto quadrada, rosto centralizado.</p>
-</div></div></form>`;
+</div></div></form>
+${!isNew ? `<div class="caixa" style="margin-top:24px"><h2 style="margin-top:0">Textos deste colunista</h2>${arts.length ? articlesTable(arts, csrf) : `<p class="vazio">Nenhuma notícia vinculada a este colunista ainda. <a href="/admin/noticias/nova"><b>Escreva uma notícia</b></a> e selecione este colunista.</p>`}</div>` : ''}`;
 }
 
 export function mediaView({ files, csrf }) {
