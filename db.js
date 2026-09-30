@@ -84,6 +84,9 @@ export const setup = () => (ready ??= (async () => {
   )`);
   await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS columnist_id integer REFERENCES columnists(id) ON DELETE SET NULL`);
   await run(`ALTER TABLE columnists ADD COLUMN IF NOT EXISTS books text DEFAULT ''`);
+  await run(`ALTER TABLE columnists ADD COLUMN IF NOT EXISTS facebook_url text DEFAULT ''`);
+  await run(`ALTER TABLE columnists ADD COLUMN IF NOT EXISTS instagram_url text DEFAULT ''`);
+  await run(`ALTER TABLE columnists ADD COLUMN IF NOT EXISTS youtube_url text DEFAULT ''`);
   await run(`CREATE TABLE IF NOT EXISTS columnist_books (
     id serial PRIMARY KEY, columnist_id integer NOT NULL REFERENCES columnists(id) ON DELETE CASCADE,
     title text NOT NULL, slug text NOT NULL, synopsis text DEFAULT '', position int NOT NULL DEFAULT 0,

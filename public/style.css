@@ -113,6 +113,7 @@ img{max-width:100%;display:block}
 .colunista-tema{font-size:13px;color:var(--suave)}
 .colunista-perfil{display:flex;gap:26px;align-items:flex-start;border-bottom:1px solid var(--linha);padding-bottom:24px;margin-bottom:4px;flex-wrap:wrap}
 .colunista-perfil h1{font:800 clamp(28px,4vw,40px)/1.05 var(--hd);margin:4px 0 2px}
+.colunista-social.social-topo{margin:10px 0 0}
 .colunista-bio{margin-top:10px;color:var(--suave);font-size:15px;line-height:1.6;max-width:64ch}
 .colunista-bio p{margin-bottom:.7em}
 .colunista-livros{margin-top:16px;max-width:64ch}

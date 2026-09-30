@@ -317,7 +317,7 @@ app.post('/admin/categorias/:id/mover', checkCsrf, async (req, res) => {
 const columnistsWithTotals = () => all('SELECT c.*, (SELECT COUNT(*) FROM articles WHERE columnist_id = c.id)::int total FROM columnists c ORDER BY position, id');
 app.get('/admin/colunistas', async (req, res) => page(req, res, { title: 'Colunistas', crumb: 'COLUNISTAS', active: '/admin/colunistas', body: V.columnistsListView({ items: await columnistsWithTotals(), csrf: req.csrf }), ...flash(req) }));
 
-const blankCol = { name: '', tagline: '', email: '', bio: '', photo: '', active: 1 };
+const blankCol = { name: '', tagline: '', email: '', bio: '', photo: '', facebook_url: '', instagram_url: '', youtube_url: '', active: 1 };
 const renderColForm = async (req, res, c, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: c.id ? 'Editar colunista' : 'Novo colunista', crumb: c.id ? 'COLUNISTAS / EDITAR' : 'COLUNISTAS / NOVO', active: '/admin/colunistas',
     erro: erros.map(V.esc).join('<br>'), body: V.columnistForm({
@@ -338,7 +338,8 @@ async function saveColumnist(req, res, id) {
   if (id && !old) return res.status(404).send('Colunista não encontrado.');
   const b = req.body || {};
   const name = cleanLine(b.name, 80);
-  const c = { name, tagline: cleanLine(b.tagline, 120), email: cleanLine(b.email, 120), bio: String(b.bio || '').slice(0, 4000).trim(), active: b.active ? 1 : 0 };
+  const c = { name, tagline: cleanLine(b.tagline, 120), email: cleanLine(b.email, 120), bio: String(b.bio || '').slice(0, 4000).trim(),
+    facebook_url: cleanLine(b.facebook_url, 300), instagram_url: cleanLine(b.instagram_url, 300), youtube_url: cleanLine(b.youtube_url, 300), active: b.active ? 1 : 0 };
 
   const erros = [];
   if (req.uploadError) erros.push(req.uploadError + ' Os demais campos preenchidos permanecem.');
@@ -350,9 +351,9 @@ async function saveColumnist(req, res, id) {
   else if (b.remove_image) { await removeImage(old?.photo); photo = ''; }
 
   const slug = old && old.name === name ? old.slug : await uniqueColumnistSlug(name, id || 0);
-  const vals = [name, slug, c.tagline, c.email, c.bio, photo || null, c.active];
-  if (old) await run('UPDATE columnists SET name=?, slug=?, tagline=?, email=?, bio=?, photo=?, active=? WHERE id=?', [...vals, id]);
-  else await run('INSERT INTO columnists (name, slug, tagline, email, bio, photo, active, position) VALUES (?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnists))', vals);
+  const vals = [name, slug, c.tagline, c.email, c.bio, c.facebook_url, c.instagram_url, c.youtube_url, photo || null, c.active];
+  if (old) await run('UPDATE columnists SET name=?, slug=?, tagline=?, email=?, bio=?, facebook_url=?, instagram_url=?, youtube_url=?, photo=?, active=? WHERE id=?', [...vals, id]);
+  else await run('INSERT INTO columnists (name, slug, tagline, email, bio, facebook_url, instagram_url, youtube_url, photo, active, position) VALUES (?,?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnists))', vals);
   res.redirect('/admin/colunistas?ok=col');
 }
 app.post('/admin/colunistas', takeUpload, checkCsrf, (req, res) => saveColumnist(req, res, 0));

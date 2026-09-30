@@ -128,12 +128,19 @@ export function columnistsView(items) {
 ${items.length ? `<div class="colunistas-grade">${items.map((c) => `<a class="colunista-card" href="/colunistas/${esc(c.slug)}"><span class="colunista-foto">${colunistaFoto(c)}</span><span class="colunista-nome">${esc(c.name)}</span>${c.tagline ? `<span class="colunista-tema">${esc(c.tagline)}</span>` : ''}</a>`).join('')}</div>` : `<p class="vazio">Nenhum colunista no momento.</p>`}`;
 }
 
+const colunistaSocial = (col) => {
+  const active = ['facebook', 'instagram', 'youtube'].filter((n) => col[`${n}_url`]);
+  if (!active.length) return '';
+  return `<div class="social-topo colunista-social" aria-label="Redes sociais de ${esc(col.name)}">${active.map((n) => `<a href="${esc(col[`${n}_url`])}" target="_blank" rel="noopener noreferrer" aria-label="${esc(col.name)} no ${NETWORK_LABEL[n]}">${SOCIAL_ICON[n]}</a>`).join('')}</div>`;
+};
+
 export function columnistView({ col, items, books = [], page, pages }) {
   return `<div class="colunista-perfil">
 <span class="colunista-perfil-foto">${colunistaFoto(col)}</span>
 <div><p class="tag">Coluna de</p><h1>${esc(col.name)}</h1>${col.tagline ? `<p class="linha-fina">${esc(col.tagline)}</p>` : ''}
 ${col.bio ? `<div class="colunista-bio">${col.bio.split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
 ${col.email ? `<p class="meta"><a href="mailto:${esc(col.email)}">${esc(col.email)}</a></p>` : ''}
+${colunistaSocial(col)}
 ${books.length ? `<div class="colunista-livros"><h3>Livros publicados</h3><ul>${books.map((b) => `<li><a href="/colunistas/${esc(col.slug)}/livros/${esc(b.slug)}">${esc(b.title)}</a></li>`).join('')}</ul></div>` : ''}</div></div>
 ${items.length ? `<div class="secao"><h2>Textos de ${esc(col.name)}</h2></div><div class="cards">${items.map(cardHtml).join('')}</div>${pager(page, pages, `/colunistas/${col.slug}`)}` : `<p class="vazio">Ainda não há textos publicados.</p>`}`;
 }
@@ -249,6 +256,9 @@ export function columnistForm({ c, arts = [], books = [], csrf }) {
 <label for="nome" style="margin-top:0">Nome do colunista</label><input id="nome" name="name" type="text" required maxlength="80" value="${esc(c.name)}">
 <label for="tema">Tema da coluna</label><input id="tema" name="tagline" type="text" maxlength="120" value="${esc(c.tagline || '')}" placeholder="Ex.: Crônicas do Dia a Dia">
 <label for="email">E-mail (opcional)</label><input id="email" name="email" type="email" maxlength="120" value="${esc(c.email || '')}">
+<label for="facebook_url">Facebook (opcional)</label><input id="facebook_url" name="facebook_url" type="url" maxlength="300" value="${esc(c.facebook_url || '')}" placeholder="https://facebook.com/…">
+<label for="instagram_url">Instagram (opcional)</label><input id="instagram_url" name="instagram_url" type="url" maxlength="300" value="${esc(c.instagram_url || '')}" placeholder="https://instagram.com/…">
+<label for="youtube_url">YouTube (opcional)</label><input id="youtube_url" name="youtube_url" type="url" maxlength="300" value="${esc(c.youtube_url || '')}" placeholder="https://youtube.com/…">
 <label for="bio">Sobre o colunista</label><textarea id="bio" name="bio" rows="8" placeholder="Uma breve biografia ou referência sobre o colunista.">${esc(c.bio || '')}</textarea>
 <label class="check"><input type="checkbox" name="active" value="1"${c.active ? ' checked' : ''}> Colunista ativo (aparece no site)</label>
 <div class="acoes-form"><button class="btn pri">${isNew ? 'Criar colunista' : 'Salvar alterações'}</button></div>
