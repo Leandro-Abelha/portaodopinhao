@@ -258,11 +258,14 @@ export function columnistForm({ c, arts = [], books = [], csrf }) {
 ${c.photo ? `<div class="prev"><img src="${esc(imgUrl(c.photo))}" alt="Foto atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover foto</label></div>` : ''}
 <label for="img" style="margin-top:${c.photo ? '14px' : '0'}">${c.photo ? 'Trocar foto' : 'Enviar foto'}</label><input id="img" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: foto quadrada, rosto centralizado.</p>
 </div></div></form>
-${!isNew ? `<div class="caixa" style="margin-top:24px"><div class="topo" style="border:0;margin:0;padding:0"><h2 style="margin-top:0">Livros publicados</h2><a class="btn peq" href="/admin/colunistas/${c.id}/livros/novo">Adicionar livro</a></div>
-${books.length ? `<table style="margin-top:14px"><thead><tr><th>Título</th><th></th></tr></thead><tbody>${books.map((b) => `<tr><td><a href="/admin/colunistas/${c.id}/livros/${b.id}"><b>${esc(b.title)}</b></a></td><td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}/livros/${b.id}">Editar</a>
-<form method="post" action="/admin/colunistas/${c.id}/livros/${b.id}/apagar" data-confirm="Apagar o livro &quot;${esc(b.title)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form></td></tr>`).join('')}</tbody></table>` : `<p class="vazio" style="margin-top:14px">Nenhum livro cadastrado. Cada livro ganha uma página própria com a sinopse no site.</p>`}
-</div>
-<div class="caixa" style="margin-top:24px"><h2 style="margin-top:0">Textos deste colunista</h2>${arts.length ? articlesTable(arts, csrf) : `<p class="vazio">Nenhuma notícia vinculada a este colunista ainda. <a href="/admin/noticias/nova"><b>Escreva uma notícia</b></a> e selecione este colunista.</p>`}</div>` : ''}`;
+${!isNew ? `<div class="caixa" style="margin-top:24px">
+<h2 style="margin-top:0">Livros e artigos deste colunista</h2>
+<div class="topo" style="border:0;margin:0 0 6px;padding:0"><h3 style="margin:0">Livros</h3><a class="btn peq" href="/admin/colunistas/${c.id}/livros/novo">Adicionar livro</a></div>
+${books.length ? `<table><thead><tr><th>Título</th><th></th></tr></thead><tbody>${books.map((b) => `<tr><td><a href="/admin/colunistas/${c.id}/livros/${b.id}"><b>${esc(b.title)}</b></a></td><td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}/livros/${b.id}">Editar</a>
+<form method="post" action="/admin/colunistas/${c.id}/livros/${b.id}/apagar" data-confirm="Apagar o livro &quot;${esc(b.title)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form></td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Nenhum livro cadastrado. Cada livro ganha uma página própria com a sinopse no site.</p>`}
+<h3 style="margin:24px 0 6px">Artigos</h3>
+${arts.length ? articlesTable(arts, csrf) : `<p class="vazio">Nenhuma notícia vinculada a este colunista ainda. <a href="/admin/noticias/nova"><b>Escreva uma notícia</b></a> e selecione este colunista.</p>`}
+</div>` : ''}`;
 }
 
 export function bookForm({ col, b, csrf }) {

@@ -20,6 +20,7 @@ main{padding:28px 34px 60px;max-width:1100px;width:100%}
 .topo{display:flex;justify-content:space-between;align-items:center;gap:14px;border-bottom:1px solid var(--linha);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap}
 h1{font:800 34px/1.05 var(--hd)}
 h2{font:700 21px var(--hd);margin:0 0 8px}
+h3{font:700 15px var(--hd);letter-spacing:.04em;text-transform:uppercase;color:var(--suave)}
 .btn,button.btn{display:inline-block;border:1px solid #c5cdd0;background:#fff;color:#172027;padding:9px 15px;font:600 14px var(--tx);cursor:pointer;border-radius:3px}
 .btn:hover{border-color:#172027}
 .btn.pri{background:var(--verde);border-color:var(--verde);color:#fff}
