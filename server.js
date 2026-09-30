@@ -114,6 +114,20 @@ const cleanBody = (html) => sanitizeHtml(html || '', {
 const plain = (h) => h.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 const cleanLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
+/* ---------------- estatísticas de audiência ---------------- */
+/* hash anônimo do visitante: muda todo dia, não guarda IP nem user-agent em texto puro */
+const visitorHash = (req) => crypto.createHash('sha256')
+  .update(`${new Date().toISOString().slice(0, 10)}|${req.ip}|${req.headers['user-agent'] || ''}|${process.env.ANALYTICS_SALT || 'pinhao'}`).digest('hex').slice(0, 32);
+const logView = (req, kind, path, articleId = null) =>
+  run('INSERT INTO pageviews (path, kind, article_id, visitor_hash) VALUES (?,?,?,?)', [path, kind, articleId, visitorHash(req)]).catch(() => {});
+const EVENT_TYPES = ['social_click'];
+app.post('/evento', express.json({ limit: '2kb' }), (req, res) => {
+  const tipo = cleanLine(req.body?.tipo, 40);
+  const meta = cleanLine(req.body?.meta, 60);
+  if (EVENT_TYPES.includes(tipo)) run('INSERT INTO events (type, meta, visitor_hash) VALUES (?,?,?)', [tipo, meta, visitorHash(req)]).catch(() => {});
+  res.status(204).end();
+});
+
 const cats = () => all('SELECT * FROM categories ORDER BY position, id');
 const socialRows = () => all(`SELECT * FROM social_links ORDER BY CASE network WHEN 'facebook' THEN 1 WHEN 'instagram' THEN 2 ELSE 3 END`);
 const allColumnists = () => all('SELECT * FROM columnists ORDER BY position, id');
@@ -133,6 +147,7 @@ app.get('/', async (req, res) => {
   const pages = Math.max(1, Math.ceil(feed.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, parseInt(req.query.pagina, 10) || 1));
   const social = await socialRows();
+  logView(req, 'home', '/');
   await site(res, { social, body: V.homeView({ lead, apoio, feed: feed.slice((page - 1) * PER_PAGE, page * PER_PAGE), page, pages, social }) });
 });
 
@@ -140,6 +155,7 @@ app.get('/noticia/:slug', async (req, res, next) => {
   const a = await one(`${SELECT_A} WHERE a.slug = ? AND ${LIVE}`, [req.params.slug]);
   if (!a) return next();
   const related = await all(`${SELECT_A} WHERE ${LIVE} AND a.id != ? AND a.category_id IS NOT DISTINCT FROM ? ${ORDER} LIMIT 3`, [a.id, a.category_id]);
+  logView(req, 'article', req.path, a.id);
   await site(res, { title: a.title, description: V.excerptOf(a), image: a.image ? V.imgUrl(a.image) : '', type: 'article', current: a.cat_slug, body: V.articleView(a, related) });
 });
 
@@ -147,6 +163,7 @@ app.get('/categoria/:slug', async (req, res, next) => {
   const cat = await one('SELECT * FROM categories WHERE slug = ?', [req.params.slug]);
   if (!cat) return next();
   const items = await all(`${SELECT_A} WHERE ${LIVE} AND a.category_id = ? ${ORDER} LIMIT 60`, [cat.id]);
+  logView(req, 'category', req.path);
   await site(res, { title: cat.name, current: cat.slug, description: `Notícias de ${cat.name} no Portal do Pinhão.`, body: V.listView({ heading: cat.name, items }) });
 });
 
@@ -154,6 +171,7 @@ app.get('/busca', async (req, res) => {
   const q = cleanLine(req.query.q, 80);
   const like = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
   const items = q ? await all(`${SELECT_A} WHERE ${LIVE} AND (a.title ILIKE ? ESCAPE '\\' OR a.summary ILIKE ? ESCAPE '\\' OR a.body ILIKE ? ESCAPE '\\' OR a.tags ILIKE ? ESCAPE '\\') ${ORDER} LIMIT 40`, [like, like, like, like]) : [];
+  if (q) logView(req, 'search', req.path);
   await site(res, { title: q ? `Busca: ${q}` : 'Busca', q, body: V.listView({ heading: q ? `Resultados para “${q}”` : 'Buscar notícias', items, note: q ? `<p class="meta" style="margin-top:6px">${items.length} resultado(s)</p>` : '' }) });
 });
 
@@ -168,6 +186,7 @@ app.get('/colunistas/:slug', async (req, res, next) => {
   const books = await all('SELECT * FROM columnist_books WHERE columnist_id = ? ORDER BY position, id', [col.id]);
   const pages = Math.max(1, Math.ceil(items.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, parseInt(req.query.pagina, 10) || 1));
+  logView(req, 'columnist', req.path);
   await site(res, { title: col.name, current: 'colunistas', description: col.tagline || `Coluna de ${col.name} no Portal do Pinhão.`, image: col.photo ? V.imgUrl(col.photo) : '',
     body: V.columnistView({ col, items: items.slice((page - 1) * PER_PAGE, page * PER_PAGE), books, page, pages }) });
 });
@@ -213,6 +232,27 @@ app.get('/admin', async (req, res) => {
   };
   const recent = await all(`${SELECT_A} ORDER BY a.updated_at DESC LIMIT 8`);
   page(req, res, { title: 'Visão geral', crumb: 'PAINEL', active: '/admin', body: V.dashboardView({ counts, recent, csrf: req.csrf }), ...flash(req) });
+});
+
+app.get('/admin/estatisticas', async (req, res) => {
+  const desde = (sql) => `created_at >= ${sql}`;
+  const HOJE = desde(`date_trunc('day', now())`);
+  const D7 = desde(`now() - interval '7 days'`);
+  const D30 = desde(`now() - interval '30 days'`);
+  const total = async (w) => Number((await one(`SELECT COUNT(*) c FROM pageviews WHERE ${w}`)).c);
+  const uniq = async (w) => Number((await one(`SELECT COUNT(DISTINCT visitor_hash) c FROM pageviews WHERE ${w}`)).c);
+  const stats = {
+    viewsHoje: await total(HOJE), viewsD7: await total(D7), viewsD30: await total(D30),
+    visitantesHoje: await uniq(HOJE), visitantesD7: await uniq(D7), visitantesD30: await uniq(D30),
+  };
+  const topArtigos = await all(`SELECT a.id, a.title, a.slug, c.name cat_name, COUNT(*)::int views
+    FROM pageviews p JOIN articles a ON a.id = p.article_id LEFT JOIN categories c ON c.id = a.category_id
+    WHERE p.${D7} GROUP BY a.id, c.name ORDER BY views DESC LIMIT 10`);
+  const porDia = await all(`SELECT (created_at AT TIME ZONE 'America/Sao_Paulo')::date::text dia, COUNT(*)::int c
+    FROM pageviews WHERE ${D30} GROUP BY dia ORDER BY dia`);
+  const porPagina = await all(`SELECT kind, COUNT(*)::int c FROM pageviews WHERE ${D7} GROUP BY kind ORDER BY c DESC`);
+  const conversoes = await all(`SELECT meta, COUNT(*)::int c FROM events WHERE type = 'social_click' AND ${D7} GROUP BY meta ORDER BY c DESC`);
+  page(req, res, { title: 'Estatísticas', crumb: 'ESTATÍSTICAS', active: '/admin/estatisticas', body: V.statsView({ stats, topArtigos, porDia, porPagina, conversoes }), ...flash(req) });
 });
 
 app.get('/admin/noticias', async (req, res) => {

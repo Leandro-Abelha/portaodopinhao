@@ -92,4 +92,16 @@ export const setup = () => (ready ??= (async () => {
     title text NOT NULL, slug text NOT NULL, synopsis text DEFAULT '', position int NOT NULL DEFAULT 0,
     created_at timestamptz DEFAULT now(), UNIQUE (columnist_id, slug)
   )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS pageviews (
+    id bigserial PRIMARY KEY, path text NOT NULL, kind text NOT NULL,
+    article_id integer REFERENCES articles(id) ON DELETE SET NULL,
+    visitor_hash text NOT NULL, created_at timestamptz DEFAULT now()
+  )`);
+  await run(`CREATE INDEX IF NOT EXISTS pageviews_created_idx ON pageviews (created_at)`);
+  await run(`CREATE INDEX IF NOT EXISTS pageviews_article_idx ON pageviews (article_id)`);
+  await run(`CREATE TABLE IF NOT EXISTS events (
+    id bigserial PRIMARY KEY, type text NOT NULL, meta text, visitor_hash text, created_at timestamptz DEFAULT now()
+  )`);
+  await run(`CREATE INDEX IF NOT EXISTS events_created_idx ON events (created_at)`);
 })().catch((e) => { ready = undefined; throw e; }));

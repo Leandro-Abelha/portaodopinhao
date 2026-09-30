@@ -36,6 +36,10 @@ h3{font:700 15px var(--hd);letter-spacing:.04em;text-transform:uppercase;color:v
 .kpis div{background:#fff;border:1px solid var(--linha);padding:14px;border-top:3px solid var(--verde-vivo)}
 .kpis b{display:block;font:800 36px/1 var(--hd)}
 .kpis span{font-size:13px;color:var(--suave)}
+.grafico{display:flex;align-items:flex-end;gap:4px;height:160px;background:#fff;border:1px solid var(--linha);padding:14px 10px 26px;margin-bottom:24px}
+.barra-dia{position:relative;flex:1;min-width:6px;background:var(--verde-vivo);border-radius:2px 2px 0 0}
+.barra-valor{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--suave);white-space:nowrap}
+.barra-rotulo{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%) rotate(-40deg);transform-origin:top left;font-size:10px;color:var(--suave);white-space:nowrap}
 table{width:100%;background:#fff;border:1px solid var(--linha);border-collapse:collapse}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--linha);vertical-align:middle}
 th{background:#f5f7f7;font-size:12px;color:var(--suave)}

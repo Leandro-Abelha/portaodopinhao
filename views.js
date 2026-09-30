@@ -52,13 +52,13 @@ const SOCIAL_ICON = {
 export function socialButtons(links) {
   const active = (links || []).filter((s) => s.url);
   if (!active.length) return '';
-  return `<div class="social" aria-label="Redes sociais">${active.map((s) => `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : `<span class="social-ico">${SOCIAL_ICON[s.network]}</span>`}<span>${esc(s.name || NETWORK_LABEL[s.network])}</span></a>`).join('')}</div>`;
+  return `<div class="social" aria-label="Redes sociais">${active.map((s) => `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" data-rede="${s.network}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : `<span class="social-ico">${SOCIAL_ICON[s.network]}</span>`}<span>${esc(s.name || NETWORK_LABEL[s.network])}</span></a>`).join('')}</div>`;
 }
 /* Só os ícones, discretos, para o cabeçalho — aparece em toda página */
 export function socialIconsCompact(links) {
   const active = (links || []).filter((s) => s.url);
   if (!active.length) return '';
-  return `<div class="social-topo" aria-label="Redes sociais">${active.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(s.name || NETWORK_LABEL[s.network])} no ${NETWORK_LABEL[s.network]}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : SOCIAL_ICON[s.network]}</a>`).join('')}</div>`;
+  return `<div class="social-topo" aria-label="Redes sociais">${active.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(s.name || NETWORK_LABEL[s.network])} no ${NETWORK_LABEL[s.network]}" data-rede="${s.network}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : SOCIAL_ICON[s.network]}</a>`).join('')}</div>`;
 }
 /* Faixa de destaque na home, logo abaixo da manchete */
 export function socialBand(links) {
@@ -80,7 +80,7 @@ export function siteLayout({ title, description = 'Seu portal de informação. N
 <div class="menu"><div class="menu-in"><nav aria-label="Editorias"><a href="/"${!current ? ' aria-current="page"' : ''}>Início</a>${cats.map((c) => `<a href="/categoria/${esc(c.slug)}"${current === c.slug ? ' aria-current="page"' : ''}>${esc(c.name)}</a>`).join('')}<a href="/colunistas"${current === 'colunistas' ? ' aria-current="page"' : ''}>Colunistas</a></nav></div></div>
 <main id="conteudo" class="wrap">${body}</main>
 <footer class="rodape"><div class="rodape-in"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p>${socialButtons(social)}<p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
-</body></html>`;
+<script src="/track.js" defer></script></body></html>`;
 }
 
 const foto = (a, alt = true) => a.image ? `<div class="foto"><img src="${esc(imgUrl(a.image))}" alt="${alt ? esc(a.title) : ''}" loading="lazy"></div>` : `<div class="foto" aria-hidden="true">PORTAL DO PINHÃO</div>`;
@@ -131,7 +131,7 @@ ${items.length ? `<div class="colunistas-grade">${items.map((c) => `<a class="co
 const colunistaSocial = (col) => {
   const active = ['facebook', 'instagram', 'youtube'].filter((n) => col[`${n}_url`]);
   if (!active.length) return '';
-  return `<div class="social-topo colunista-social" aria-label="Redes sociais de ${esc(col.name)}">${active.map((n) => `<a href="${esc(col[`${n}_url`])}" target="_blank" rel="noopener noreferrer" aria-label="${esc(col.name)} no ${NETWORK_LABEL[n]}">${SOCIAL_ICON[n]}</a>`).join('')}</div>`;
+  return `<div class="social-topo colunista-social" aria-label="Redes sociais de ${esc(col.name)}">${active.map((n) => `<a href="${esc(col[`${n}_url`])}" target="_blank" rel="noopener noreferrer" aria-label="${esc(col.name)} no ${NETWORK_LABEL[n]}" data-rede="${n}">${SOCIAL_ICON[n]}</a>`).join('')}</div>`;
 };
 
 export function columnistView({ col, items, books = [], page, pages }) {
@@ -152,7 +152,7 @@ ${book.synopsis ? `<div class="corpo">${book.synopsis.split(/\n+/).filter(Boolea
 }
 
 /* =============== PAINEL ADMIN =============== */
-const NAV = [['/admin', 'Visão geral'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/colunistas', 'Colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais'], ['/admin/conta', 'Minha conta']];
+const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/colunistas', 'Colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais'], ['/admin/conta', 'Minha conta']];
 
 export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
@@ -180,6 +180,38 @@ export function dashboardView({ counts, recent, csrf }) {
   return `<div class="topo"><h1>Visão geral</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="kpis"><div><b>${counts.published}</b><span>Publicadas</span></div><div><b>${counts.draft}</b><span>Rascunhos</span></div><div><b>${counts.scheduled}</b><span>Agendadas</span></div><div><b>${counts.today}</b><span>Publicadas hoje</span></div></div>
 <h2>Últimas alterações</h2>${articlesTable(recent, csrf)}`;
+}
+
+const PAGE_KIND_LABEL = { home: 'Início', article: 'Notícias', category: 'Categorias', search: 'Busca', columnist: 'Colunistas' };
+const diaCurto = (s) => { const [, m, d] = s.split('-'); return `${d}/${m}`; };
+
+export function statsView({ stats, topArtigos, porDia, porPagina, conversoes }) {
+  const maxDia = Math.max(1, ...porDia.map((d) => d.c));
+  const totalConversoes = conversoes.reduce((n, c) => n + c.c, 0);
+  return `<div class="topo"><h1>Estatísticas</h1></div>
+<div class="kpis">
+<div><b>${stats.viewsHoje}</b><span>Visualizações hoje</span></div>
+<div><b>${stats.viewsD7}</b><span>Visualizações (7 dias)</span></div>
+<div><b>${stats.viewsD30}</b><span>Visualizações (30 dias)</span></div>
+<div><b>${stats.visitantesD7}</b><span>Visitantes únicos (7 dias)</span></div>
+</div>
+
+<h2>Visualizações por dia (30 dias)</h2>
+${porDia.length ? `<div class="grafico" role="img" aria-label="Gráfico de visualizações por dia">${porDia.map((d) => `<div class="barra-dia" style="height:${Math.max(3, Math.round(d.c / maxDia * 100))}%"><span class="barra-valor">${d.c}</span><span class="barra-rotulo">${diaCurto(d.dia)}</span></div>`).join('')}</div>` : `<p class="vazio">Ainda não há dados de visualização.</p>`}
+
+<div class="duas" style="margin-top:28px">
+<div>
+<h2>Notícias mais lidas (7 dias)</h2>
+${topArtigos.length ? `<table><thead><tr><th>Título</th><th>Categoria</th><th>Views</th></tr></thead><tbody>${topArtigos.map((a) => `<tr><td><a href="/admin/noticias/${a.id}"><b>${esc(a.title)}</b></a></td><td>${esc(a.cat_name || '—')}</td><td>${a.views}</td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Ainda sem visualizações suficientes.</p>`}
+</div>
+<div>
+<h2>Conversões: cliques em redes sociais (7 dias)</h2>
+${conversoes.length ? `<table><thead><tr><th>Rede</th><th>Cliques</th></tr></thead><tbody>${conversoes.map((c) => `<tr><td>${NETWORK_LABEL[c.meta] || esc(c.meta)}</td><td>${c.c}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${totalConversoes}</b></td></tr></tbody></table>` : `<p class="vazio">Nenhum clique em redes sociais registrado ainda.</p>`}
+
+<h2 style="margin-top:24px">Visualizações por tipo de página (7 dias)</h2>
+${porPagina.length ? `<table><thead><tr><th>Página</th><th>Views</th></tr></thead><tbody>${porPagina.map((p) => `<tr><td>${PAGE_KIND_LABEL[p.kind] || esc(p.kind)}</td><td>${p.c}</td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Sem dados ainda.</p>`}
+</div>
+</div>`;
 }
 
 export function articlesTable(items, csrf) {
