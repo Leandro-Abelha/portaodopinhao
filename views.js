@@ -77,7 +77,7 @@ export function siteLayout({ title, description = 'Seu portal de informação. N
 <header class="topo"><div class="topo-in"><a class="marca" href="/"><img src="/logo-claro.svg" alt="Portal do Pinhão – seu portal de informação"></a>
 <div class="topo-dir"><span class="data">${esc(todayLabel())}</span>
 <form class="busca" action="/busca" role="search"><label class="sr" for="q">Buscar notícias</label><input id="q" name="q" type="search" placeholder="Buscar notícias" value="${esc(q)}"><button type="submit">Buscar</button></form></div>${socialIconsCompact(social)}</div></header>
-<div class="menu"><div class="menu-in"><nav aria-label="Editorias"><a href="/"${!current ? ' aria-current="page"' : ''}>Início</a>${cats.map((c) => `<a href="/categoria/${esc(c.slug)}"${current === c.slug ? ' aria-current="page"' : ''}>${esc(c.name)}</a>`).join('')}</nav></div></div>
+<div class="menu"><div class="menu-in"><nav aria-label="Editorias"><a href="/"${!current ? ' aria-current="page"' : ''}>Início</a>${cats.map((c) => `<a href="/categoria/${esc(c.slug)}"${current === c.slug ? ' aria-current="page"' : ''}>${esc(c.name)}</a>`).join('')}<a href="/colunistas"${current === 'colunistas' ? ' aria-current="page"' : ''}>Colunistas</a></nav></div></div>
 <main id="conteudo" class="wrap">${body}</main>
 <footer class="rodape"><div class="rodape-in"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p>${socialButtons(social)}<p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
 </body></html>`;
@@ -99,7 +99,7 @@ ${feed.length ? `<section aria-labelledby="ult"><div class="secao"><h2 id="ult">
 export const feedCard = (a) => `<a class="fcard" href="${link(a)}">
 <div class="ftxt"><span class="tag">${esc(a.cat_name || '')}</span><h3>${esc(a.title)}</h3><p>${esc(excerptOf(a))}</p><time class="meta" datetime="${esc(a.published_at)}">${fmtRecent(a.published_at)}</time></div>
 ${a.image ? `<img class="fimg" src="${esc(imgUrl(a.image))}" alt="" loading="lazy">` : `<div class="fimg vazia" aria-hidden="true"></div>`}</a>`;
-const pager = (page, pages) => pages < 2 ? '' : `<nav class="pager" aria-label="Páginas">${page > 1 ? `<a href="/?pagina=${page - 1}">‹ Mais recentes</a>` : '<span></span>'}<span>Página ${page} de ${pages}</span>${page < pages ? `<a href="/?pagina=${page + 1}">Mais antigas ›</a>` : '<span></span>'}</nav>`;
+const pager = (page, pages, base = '/') => pages < 2 ? '' : `<nav class="pager" aria-label="Páginas">${page > 1 ? `<a href="${base}?pagina=${page - 1}">‹ Mais recentes</a>` : '<span></span>'}<span>Página ${page} de ${pages}</span>${page < pages ? `<a href="${base}?pagina=${page + 1}">Mais antigas ›</a>` : '<span></span>'}</nav>`;
 export const cardHtml = (a) => `<article>${foto(a, false)}<a class="tag" href="/categoria/${esc(a.cat_slug || '')}">${esc(a.cat_name || '')}</a><h3><a href="${link(a)}">${esc(a.title)}</a></h3><p class="meta">${fmtRecent(a.published_at)}</p></article>`;
 
 export function listView({ heading, items, note = '' }) {
@@ -112,6 +112,7 @@ export function articleView(a, related) {
   return `<article class="materia"><a class="tag" href="/categoria/${esc(a.cat_slug || '')}">${esc(a.cat_name || '')}</a>
 <h1>${esc(a.title)}</h1>${a.summary ? `<p class="linha-fina">${esc(a.summary)}</p>` : ''}
 <p class="meta">${a.author ? `Por ${esc(a.author)} · ` : ''}<time datetime="${esc(a.published_at)}">${fmtFull(a.published_at)}</time></p>
+${a.columnist_id ? `<a class="colunista-selo" href="/colunistas/${esc(a.columnist_slug)}">${a.columnist_photo ? `<img src="${esc(imgUrl(a.columnist_photo))}" alt="">` : ''}Coluna de ${esc(a.columnist_name)}</a>` : ''}
 ${a.image ? `<figure><img src="${esc(imgUrl(a.image))}" alt="${esc(a.title)}">${a.image_credit ? `<figcaption>${esc(a.image_credit)}</figcaption>` : ''}</figure>` : ''}
 ${video ? `<div class="video-embed video-${video.platform}"><iframe src="${esc(video.src)}" title="Vídeo da notícia" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
 <div class="corpo">${a.body}</div>
@@ -119,8 +120,25 @@ ${a.tags ? `<p class="tags">Assuntos: ${a.tags.split(',').map((t) => esc(t.trim(
 ${related.length ? `<section><div class="secao"><h2>Leia também</h2></div><div class="cards">${related.map(cardHtml).join('')}</div></section>` : ''}`;
 }
 
+/* =============== COLUNISTAS =============== */
+const colunistaFoto = (c) => c.photo ? `<img src="${esc(imgUrl(c.photo))}" alt="${esc(c.name)}" loading="lazy">` : `<span aria-hidden="true">${esc(c.name.slice(0, 1))}</span>`;
+
+export function columnistsView(items) {
+  return `<div class="secao" style="margin-top:0;border-top:0"><h2>Colunistas</h2></div>
+${items.length ? `<div class="colunistas-grade">${items.map((c) => `<a class="colunista-card" href="/colunistas/${esc(c.slug)}"><span class="colunista-foto">${colunistaFoto(c)}</span><span class="colunista-nome">${esc(c.name)}</span>${c.tagline ? `<span class="colunista-tema">${esc(c.tagline)}</span>` : ''}</a>`).join('')}</div>` : `<p class="vazio">Nenhum colunista no momento.</p>`}`;
+}
+
+export function columnistView({ col, items, page, pages }) {
+  return `<div class="colunista-perfil">
+<span class="colunista-perfil-foto">${colunistaFoto(col)}</span>
+<div><p class="tag">Coluna de</p><h1>${esc(col.name)}</h1>${col.tagline ? `<p class="linha-fina">${esc(col.tagline)}</p>` : ''}
+${col.bio ? `<div class="colunista-bio">${col.bio.split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
+${col.email ? `<p class="meta"><a href="mailto:${esc(col.email)}">${esc(col.email)}</a></p>` : ''}</div></div>
+${items.length ? `<div class="secao"><h2>Textos de ${esc(col.name)}</h2></div><div class="cards">${items.map(cardHtml).join('')}</div>${pager(page, pages, `/colunistas/${col.slug}`)}` : `<p class="vazio">Ainda não há textos publicados.</p>`}`;
+}
+
 /* =============== PAINEL ADMIN =============== */
-const NAV = [['/admin', 'Visão geral'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais'], ['/admin/conta', 'Minha conta']];
+const NAV = [['/admin', 'Visão geral'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/colunistas', 'Colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais'], ['/admin/conta', 'Minha conta']];
 
 export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
@@ -164,7 +182,7 @@ export function articlesListView({ items, filter, csrf }) {
 <div class="filtros">${f.map(([k, l]) => `<a href="/admin/noticias?status=${k}"${filter === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</div>${articlesTable(items, csrf)}`;
 }
 
-export function articleForm({ a, cats, csrf, erros = [] }) {
+export function articleForm({ a, cats, columnists, csrf, erros = [] }) {
   const isNew = !a.id;
   const agendada = a.status === 'published' && a.published_at && toDate(a.published_at) > new Date();
   return `<form method="post" enctype="multipart/form-data" action="${isNew ? '/admin/noticias' : `/admin/noticias/${a.id}`}" id="form-noticia" novalidate>
@@ -182,6 +200,7 @@ export function articleForm({ a, cats, csrf, erros = [] }) {
 </section>
 <aside class="lateral">
 <div><h3>Publicação</h3><label for="cat">Categoria</label><select id="cat" name="category_id"><option value="">Escolha…</option>${cats.map((c) => `<option value="${c.id}"${String(a.category_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+<label for="colunista">Coluna (opcional)</label><select id="colunista" name="columnist_id"><option value="">Notícia comum (sem colunista)</option>${columnists.map((c) => `<option value="${c.id}"${String(a.columnist_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}${c.active ? '' : ' (inativo)'}</option>`).join('')}</select>
 <label for="quando">Data</label><select id="quando" name="quando"><option value="now">Publicar agora</option><option value="schedule"${agendada ? ' selected' : ''}>Agendar…</option></select>
 <div id="agenda" ${agendada ? '' : 'hidden'}><label for="quando_em">Publicar em (horário de Brasília)</label><input id="quando_em" name="quando_em" type="datetime-local" value="${agendada ? toLocalInput(a.published_at) : ''}"></div>
 <label class="check"><input type="checkbox" name="featured" value="1"${a.featured ? ' checked' : ''}> Manchete da página inicial</label></div>
@@ -200,6 +219,38 @@ export function categoriesView({ cats, csrf }) {
 <form method="post" action="/admin/categorias/${c.id}/apagar" data-confirm="Apagar a categoria &quot;${esc(c.name)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo"${c.total ? ' disabled title="Mova as notícias antes de apagar"' : ''}>Apagar</button></form></td></tr>`).join('')}</tbody></table>
 <p class="ajuda">A ordem aqui é a mesma do menu do site.</p></div>
 <form class="caixa" method="post" action="/admin/categorias"><input type="hidden" name="_csrf" value="${esc(csrf)}"><h2>Nova categoria</h2><label for="nome">Nome</label><input id="nome" name="name" type="text" required maxlength="40"><p class="ajuda">Aparece no fim do menu do site; use as setas para reordenar.</p><div class="acoes-form"><button class="btn pri">Criar categoria</button></div></form></div>`;
+}
+
+export function columnistsListView({ items, csrf }) {
+  const mover = (c, i) => `<form method="post" action="/admin/colunistas/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="cima"><button class="btn peq" ${i === 0 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para cima" title="Mover para cima">↑</button></form>
+<form method="post" action="/admin/colunistas/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="baixo"><button class="btn peq" ${i === items.length - 1 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para baixo" title="Mover para baixo">↓</button></form>`;
+  return `<div class="topo"><h1>Colunistas</h1><a class="btn pri" href="/admin/colunistas/novo">Novo colunista</a></div>
+${items.length ? `<table><thead><tr><th>Ordem</th><th></th><th>Nome</th><th>Textos</th><th>Situação</th><th></th></tr></thead><tbody>${items.map((c, i) => `<tr><td class="ordem">${mover(c, i)}</td>
+<td>${c.photo ? `<img src="${esc(imgUrl(c.photo))}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover">` : ''}</td>
+<td><a href="/admin/colunistas/${c.id}"><b>${esc(c.name)}</b></a>${c.tagline ? `<br><span class="ajuda">${esc(c.tagline)}</span>` : ''}</td><td>${c.total}</td><td>${c.active ? '<span class="st published">Ativo</span>' : '<span class="st draft">Inativo</span>'}</td>
+<td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}">Editar</a>
+<form method="post" action="/admin/colunistas/${c.id}/apagar" data-confirm="Apagar o colunista &quot;${esc(c.name)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo"${c.total ? ' disabled title="Mova as notícias antes de apagar"' : ''}>Apagar</button></form></td></tr>`).join('')}</tbody></table>`
+  : `<p class="vazio">Nenhum colunista cadastrado. <a href="/admin/colunistas/novo"><b>Cadastre o primeiro colunista</b></a>.</p>`}`;
+}
+
+export function columnistForm({ c, csrf }) {
+  const isNew = !c.id;
+  return `<form method="post" enctype="multipart/form-data" action="${isNew ? '/admin/colunistas' : `/admin/colunistas/${c.id}`}">
+<input type="hidden" name="_csrf" value="${esc(csrf)}">
+<div class="topo"><h1>${isNew ? 'Novo colunista' : 'Editar colunista'}</h1></div>
+<div class="duas"><div class="caixa">
+<label for="nome" style="margin-top:0">Nome do colunista</label><input id="nome" name="name" type="text" required maxlength="80" value="${esc(c.name)}">
+<label for="tema">Tema da coluna</label><input id="tema" name="tagline" type="text" maxlength="120" value="${esc(c.tagline || '')}" placeholder="Ex.: Crônicas do Dia a Dia">
+<label for="email">E-mail (opcional)</label><input id="email" name="email" type="email" maxlength="120" value="${esc(c.email || '')}">
+<label for="bio">Sobre o colunista</label><textarea id="bio" name="bio" rows="8" placeholder="Uma breve biografia ou referência sobre o colunista.">${esc(c.bio || '')}</textarea>
+<label class="check"><input type="checkbox" name="active" value="1"${c.active ? ' checked' : ''}> Colunista ativo (aparece no site)</label>
+<div class="acoes-form"><button class="btn pri">${isNew ? 'Criar colunista' : 'Salvar alterações'}</button></div>
+</div>
+<div class="caixa">
+<h2 style="margin-top:0">Foto</h2>
+${c.photo ? `<div class="prev"><img src="${esc(imgUrl(c.photo))}" alt="Foto atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover foto</label></div>` : ''}
+<label for="img" style="margin-top:${c.photo ? '14px' : '0'}">${c.photo ? 'Trocar foto' : 'Enviar foto'}</label><input id="img" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: foto quadrada, rosto centralizado.</p>
+</div></div></form>`;
 }
 
 export function mediaView({ files, csrf }) {

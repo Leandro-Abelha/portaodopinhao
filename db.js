@@ -42,6 +42,12 @@ export async function uniqueSlug(title, ignoreId = 0) {
   while (await one('SELECT id FROM articles WHERE slug = ? AND id != ?', [slug, ignoreId])) slug = `${base}-${n++}`;
   return slug;
 }
+export async function uniqueColumnistSlug(name, ignoreId = 0) {
+  const base = slugify(name);
+  let slug = base, n = 2;
+  while (await one('SELECT id FROM columnists WHERE slug = ? AND id != ?', [slug, ignoreId])) slug = `${base}-${n++}`;
+  return slug;
+}
 
 /* Notícia visível ao público: publicada e com data já atingida (permite agendar) */
 export const LIVE = `a.status = 'published' AND a.published_at <= now()`;
@@ -64,4 +70,11 @@ export const setup = () => (ready ??= (async () => {
   )`);
   for (const n of ['facebook', 'instagram', 'youtube']) await run('INSERT INTO social_links (network) VALUES (?) ON CONFLICT DO NOTHING', [n]);
   await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS video_url text DEFAULT ''`);
+
+  await run(`CREATE TABLE IF NOT EXISTS columnists (
+    id serial PRIMARY KEY, name text NOT NULL, slug text UNIQUE NOT NULL, photo text,
+    tagline text DEFAULT '', email text DEFAULT '', bio text DEFAULT '',
+    position int NOT NULL DEFAULT 0, active boolean NOT NULL DEFAULT true, created_at timestamptz DEFAULT now()
+  )`);
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS columnist_id integer REFERENCES columnists(id) ON DELETE SET NULL`);
 })().catch((e) => { ready = undefined; throw e; }));
