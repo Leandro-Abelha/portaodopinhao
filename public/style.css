@@ -117,7 +117,9 @@ img{max-width:100%;display:block}
 .colunista-bio p{margin-bottom:.7em}
 .colunista-livros{margin-top:16px;max-width:64ch}
 .colunista-livros h3{font:700 15px var(--hd);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
-.colunista-livros ul{list-style:disc;padding-left:1.3em;color:var(--suave);font-size:15px;line-height:1.6}
+.colunista-livros ul{list-style:disc;padding-left:1.3em;font-size:15px;line-height:1.6}
+.colunista-livros a{color:var(--verde);font-weight:600}
+.colunista-livros a:hover{text-decoration:underline}
 .colunista-selo{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-weight:700;color:var(--verde)}
 .colunista-selo img{width:28px;height:28px;border-radius:50%;object-fit:cover}
 @media(max-width:520px){.colunistas-grade{grid-template-columns:1fr 1fr}}

@@ -48,6 +48,12 @@ export async function uniqueColumnistSlug(name, ignoreId = 0) {
   while (await one('SELECT id FROM columnists WHERE slug = ? AND id != ?', [slug, ignoreId])) slug = `${base}-${n++}`;
   return slug;
 }
+export async function uniqueBookSlug(columnistId, title, ignoreId = 0) {
+  const base = slugify(title);
+  let slug = base, n = 2;
+  while (await one('SELECT id FROM columnist_books WHERE columnist_id = ? AND slug = ? AND id != ?', [columnistId, slug, ignoreId])) slug = `${base}-${n++}`;
+  return slug;
+}
 
 /* Notícia visível ao público: publicada e com data já atingida (permite agendar) */
 export const LIVE = `a.status = 'published' AND a.published_at <= now()`;
@@ -78,4 +84,9 @@ export const setup = () => (ready ??= (async () => {
   )`);
   await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS columnist_id integer REFERENCES columnists(id) ON DELETE SET NULL`);
   await run(`ALTER TABLE columnists ADD COLUMN IF NOT EXISTS books text DEFAULT ''`);
+  await run(`CREATE TABLE IF NOT EXISTS columnist_books (
+    id serial PRIMARY KEY, columnist_id integer NOT NULL REFERENCES columnists(id) ON DELETE CASCADE,
+    title text NOT NULL, slug text NOT NULL, synopsis text DEFAULT '', position int NOT NULL DEFAULT 0,
+    created_at timestamptz DEFAULT now(), UNIQUE (columnist_id, slug)
+  )`);
 })().catch((e) => { ready = undefined; throw e; }));

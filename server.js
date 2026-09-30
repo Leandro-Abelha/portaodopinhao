@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import sanitizeHtml from 'sanitize-html';
 import crypto from 'node:crypto';
-import { all, one, run, setup, hashPassword, checkPassword, slugify, uniqueSlug, uniqueColumnistSlug, LIVE } from './db.js';
+import { all, one, run, setup, hashPassword, checkPassword, slugify, uniqueSlug, uniqueColumnistSlug, uniqueBookSlug, LIVE } from './db.js';
 import * as V from './views.js';
 
 const PORT = process.env.PORT || 3000;
@@ -165,10 +165,18 @@ app.get('/colunistas/:slug', async (req, res, next) => {
   const col = await one('SELECT * FROM columnists WHERE slug = ?', [req.params.slug]);
   if (!col) return next();
   const items = await all(`${SELECT_A} WHERE ${LIVE} AND a.columnist_id = ? ${ORDER} LIMIT 500`, [col.id]);
+  const books = await all('SELECT * FROM columnist_books WHERE columnist_id = ? ORDER BY position, id', [col.id]);
   const pages = Math.max(1, Math.ceil(items.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, parseInt(req.query.pagina, 10) || 1));
   await site(res, { title: col.name, current: 'colunistas', description: col.tagline || `Coluna de ${col.name} no Portal do Pinhão.`, image: col.photo ? V.imgUrl(col.photo) : '',
-    body: V.columnistView({ col, items: items.slice((page - 1) * PER_PAGE, page * PER_PAGE), page, pages }) });
+    body: V.columnistView({ col, items: items.slice((page - 1) * PER_PAGE, page * PER_PAGE), books, page, pages }) });
+});
+app.get('/colunistas/:slug/livros/:bookSlug', async (req, res, next) => {
+  const col = await one('SELECT * FROM columnists WHERE slug = ?', [req.params.slug]);
+  const b = col && await one('SELECT * FROM columnist_books WHERE columnist_id = ? AND slug = ?', [col.id, req.params.bookSlug]);
+  if (!col || !b) return next();
+  await site(res, { title: `${b.title} — ${col.name}`, current: 'colunistas', description: (b.synopsis || '').slice(0, 200) || `Livro de ${col.name}.`,
+    body: V.bookView({ col, book: b }) });
 });
 
 /* =============== ADMIN: acesso =============== */
@@ -309,10 +317,14 @@ app.post('/admin/categorias/:id/mover', checkCsrf, async (req, res) => {
 const columnistsWithTotals = () => all('SELECT c.*, (SELECT COUNT(*) FROM articles WHERE columnist_id = c.id)::int total FROM columnists c ORDER BY position, id');
 app.get('/admin/colunistas', async (req, res) => page(req, res, { title: 'Colunistas', crumb: 'COLUNISTAS', active: '/admin/colunistas', body: V.columnistsListView({ items: await columnistsWithTotals(), csrf: req.csrf }), ...flash(req) }));
 
-const blankCol = { name: '', tagline: '', email: '', bio: '', books: '', photo: '', active: 1 };
+const blankCol = { name: '', tagline: '', email: '', bio: '', photo: '', active: 1 };
 const renderColForm = async (req, res, c, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: c.id ? 'Editar colunista' : 'Novo colunista', crumb: c.id ? 'COLUNISTAS / EDITAR' : 'COLUNISTAS / NOVO', active: '/admin/colunistas',
-    erro: erros.map(V.esc).join('<br>'), body: V.columnistForm({ c, arts: c.id ? await all(`${SELECT_A} WHERE a.columnist_id = ? ORDER BY a.updated_at DESC LIMIT 200`, [c.id]) : [], csrf: req.csrf }) }));
+    erro: erros.map(V.esc).join('<br>'), body: V.columnistForm({
+      c, csrf: req.csrf,
+      arts: c.id ? await all(`${SELECT_A} WHERE a.columnist_id = ? ORDER BY a.updated_at DESC LIMIT 200`, [c.id]) : [],
+      books: c.id ? await all('SELECT * FROM columnist_books WHERE columnist_id = ? ORDER BY position, id', [c.id]) : [],
+    }) }));
 
 app.get('/admin/colunistas/novo', (req, res) => renderColForm(req, res, blankCol));
 app.get('/admin/colunistas/:id', async (req, res, next) => {
@@ -326,7 +338,7 @@ async function saveColumnist(req, res, id) {
   if (id && !old) return res.status(404).send('Colunista não encontrado.');
   const b = req.body || {};
   const name = cleanLine(b.name, 80);
-  const c = { name, tagline: cleanLine(b.tagline, 120), email: cleanLine(b.email, 120), bio: String(b.bio || '').slice(0, 4000).trim(), books: String(b.books || '').slice(0, 4000).trim(), active: b.active ? 1 : 0 };
+  const c = { name, tagline: cleanLine(b.tagline, 120), email: cleanLine(b.email, 120), bio: String(b.bio || '').slice(0, 4000).trim(), active: b.active ? 1 : 0 };
 
   const erros = [];
   if (req.uploadError) erros.push(req.uploadError + ' Os demais campos preenchidos permanecem.');
@@ -338,9 +350,9 @@ async function saveColumnist(req, res, id) {
   else if (b.remove_image) { await removeImage(old?.photo); photo = ''; }
 
   const slug = old && old.name === name ? old.slug : await uniqueColumnistSlug(name, id || 0);
-  const vals = [name, slug, c.tagline, c.email, c.bio, c.books, photo || null, c.active];
-  if (old) await run('UPDATE columnists SET name=?, slug=?, tagline=?, email=?, bio=?, books=?, photo=?, active=? WHERE id=?', [...vals, id]);
-  else await run('INSERT INTO columnists (name, slug, tagline, email, bio, books, photo, active, position) VALUES (?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnists))', vals);
+  const vals = [name, slug, c.tagline, c.email, c.bio, photo || null, c.active];
+  if (old) await run('UPDATE columnists SET name=?, slug=?, tagline=?, email=?, bio=?, photo=?, active=? WHERE id=?', [...vals, id]);
+  else await run('INSERT INTO columnists (name, slug, tagline, email, bio, photo, active, position) VALUES (?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnists))', vals);
   res.redirect('/admin/colunistas?ok=col');
 }
 app.post('/admin/colunistas', takeUpload, checkCsrf, (req, res) => saveColumnist(req, res, 0));
@@ -362,6 +374,44 @@ app.post('/admin/colunistas/:id/mover', checkCsrf, async (req, res) => {
     await run('UPDATE columnists SET position = ? WHERE id = ?', [ordenadas[i].position, ordenadas[j].id]);
   }
   res.redirect('/admin/colunistas?ok=col');
+});
+
+/* =============== ADMIN: livros do colunista =============== */
+const renderBookForm = async (req, res, col, b, erros = [], code = 200) =>
+  res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: b.id ? 'Editar livro' : 'Novo livro', crumb: 'COLUNISTAS / LIVROS', active: '/admin/colunistas',
+    erro: erros.map(V.esc).join('<br>'), body: V.bookForm({ col, b, csrf: req.csrf }) }));
+
+app.get('/admin/colunistas/:id/livros/novo', async (req, res, next) => {
+  const col = await one('SELECT * FROM columnists WHERE id = ?', [Number(req.params.id) || 0]);
+  if (!col) return next();
+  await renderBookForm(req, res, col, { title: '', synopsis: '' });
+});
+app.get('/admin/colunistas/:id/livros/:bookId', async (req, res, next) => {
+  const col = await one('SELECT * FROM columnists WHERE id = ?', [Number(req.params.id) || 0]);
+  const b = col && await one('SELECT * FROM columnist_books WHERE id = ? AND columnist_id = ?', [Number(req.params.bookId) || 0, col.id]);
+  if (!col || !b) return next();
+  await renderBookForm(req, res, col, b);
+});
+
+async function saveBook(req, res, colId, id) {
+  const col = await one('SELECT * FROM columnists WHERE id = ?', [colId]);
+  if (!col) return res.status(404).send('Colunista não encontrado.');
+  const old = id ? await one('SELECT * FROM columnist_books WHERE id = ? AND columnist_id = ?', [id, colId]) : null;
+  if (id && !old) return res.status(404).send('Livro não encontrado.');
+  const title = cleanLine(req.body.title, 160);
+  const synopsis = String(req.body.synopsis || '').slice(0, 6000).trim();
+  if (!title) return renderBookForm(req, res, col, { id, title, synopsis }, ['Preencha o título do livro.'], 422);
+
+  const slug = old && old.title === title ? old.slug : await uniqueBookSlug(colId, title, id || 0);
+  if (old) await run('UPDATE columnist_books SET title=?, slug=?, synopsis=? WHERE id=?', [title, slug, synopsis, id]);
+  else await run('INSERT INTO columnist_books (columnist_id, title, slug, synopsis, position) VALUES (?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnist_books WHERE columnist_id = ?))', [colId, title, slug, synopsis, colId]);
+  res.redirect(`/admin/colunistas/${colId}?ok=col`);
+}
+app.post('/admin/colunistas/:id/livros', checkCsrf, (req, res) => saveBook(req, res, Number(req.params.id) || 0, 0));
+app.post('/admin/colunistas/:id/livros/:bookId', checkCsrf, (req, res) => saveBook(req, res, Number(req.params.id) || 0, Number(req.params.bookId) || 0));
+app.post('/admin/colunistas/:id/livros/:bookId/apagar', checkCsrf, async (req, res) => {
+  await run('DELETE FROM columnist_books WHERE id = ? AND columnist_id = ?', [Number(req.params.bookId) || 0, Number(req.params.id) || 0]);
+  res.redirect(`/admin/colunistas/${Number(req.params.id) || 0}?ok=col`);
 });
 
 async function listMedia() {
