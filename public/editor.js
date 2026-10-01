@@ -9,7 +9,13 @@ document.addEventListener('submit', (e) => {
 const texto = $('#texto');
 if (texto) {
   const form = $('#form-noticia');
-  document.querySelectorAll('.barra [data-cmd]').forEach((b) =>
+  const botoes = document.querySelectorAll('.barra [data-cmd]');
+  const ESTADOS = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'];
+  const atualizarEstado = () => botoes.forEach((b) => {
+    const [cmd] = b.dataset.cmd.split(':');
+    if (ESTADOS.includes(cmd)) { try { b.classList.toggle('ativo', document.queryCommandState(cmd)); } catch (e) {} }
+  });
+  botoes.forEach((b) =>
     b.addEventListener('click', () => {
       texto.focus();
       const [cmd, arg] = b.dataset.cmd.split(':');
@@ -17,7 +23,11 @@ if (texto) {
         const url = prompt('Endereço do link (https://…)');
         if (url) document.execCommand('createLink', false, url);
       } else document.execCommand(cmd, false, arg || null);
+      atualizarEstado();
     }));
+  texto.addEventListener('keyup', atualizarEstado);
+  texto.addEventListener('mouseup', atualizarEstado);
+  document.addEventListener('selectionchange', () => { if (document.activeElement === texto) atualizarEstado(); });
   // cola sem trazer formatação de outros sites
   texto.addEventListener('paste', (e) => {
     e.preventDefault();

@@ -47,7 +47,17 @@ const SOCIAL_ICON = {
   facebook: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.2-1.5 1.6-1.5h1.7V3.7C15.9 3.6 15 3.5 13.9 3.5c-2.7 0-4.4 1.6-4.4 4.6V10H6.8v3.1h2.7v8h4z"/></svg>`,
   instagram: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>`,
   youtube: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor"/></svg>`,
+  whatsapp: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5A9.3 9.3 0 003.4 16l-1.1 5.5 5.6-1.5a9.3 9.3 0 004.1 1 9.3 9.3 0 100-18.5zm0 17a7.6 7.6 0 01-3.9-1.1l-.3-.2-3.3.9.9-3.2-.2-.3A7.7 7.7 0 1112 19.5zm4.2-5.7c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.2 6.2 0 01-1.9-1.2 7 7 0 01-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.2-.4a.5.5 0 000-.4c0-.1-.5-1.3-.7-1.8s-.4-.4-.5-.4h-.5a1 1 0 00-.7.3 2.8 2.8 0 00-.9 2.1c0 1.3.9 2.5 1.1 2.7.1.2 1.8 2.7 4.3 3.7a6.9 6.9 0 001.4.5 3 3 0 001.4.1c.4-.1 1.4-.5 1.5-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/></svg>`,
 };
+/* Facebook, WhatsApp e Instagram embaixo de cada notícia/coluna */
+function compartilharBotoes() {
+  return `<div class="compartilhar" aria-label="Compartilhar esta notícia"><span>Compartilhar</span>
+<a href="#" class="share-btn" data-share="facebook" aria-label="Compartilhar no Facebook">${SOCIAL_ICON.facebook}</a>
+<a href="#" class="share-btn" data-share="whatsapp" aria-label="Compartilhar no WhatsApp">${SOCIAL_ICON.whatsapp}</a>
+<a href="#" class="share-btn" data-share="instagram" aria-label="Copiar link para compartilhar no Instagram">${SOCIAL_ICON.instagram}</a>
+<span class="compartilhar-aviso" aria-live="polite"></span>
+</div>`;
+}
 /* Um botão por rede com link preenchido; sem foto cadastrada, mostra o ícone da rede */
 export function socialButtons(links) {
   const active = (links || []).filter((s) => s.url);
@@ -63,7 +73,7 @@ export function socialIconsCompact(links) {
 /* Faixa de destaque na home, logo abaixo da manchete */
 export function socialBand(links) {
   if (!(links || []).some((s) => s.url)) return '';
-  return `<section class="faixa-social"><div class="faixa-social-in"><h2>Acompanhe o Portal do Pinhão</h2>${socialButtons(links)}</div></section>`;
+  return `<section class="faixa-social"><div class="faixa-social-in"><div class="faixa-social-txt"><h2>Acompanhe o Portal do Pinhão</h2>${socialButtons(links)}</div><img class="faixa-mascote" src="/mascote-pinho.png" alt="" loading="lazy" width="220" height="275"></div></section>`;
 }
 
 /* =============== SITE PÚBLICO =============== */
@@ -79,21 +89,30 @@ export function siteLayout({ title, description = 'Seu portal de informação. N
 <form class="busca" action="/busca" role="search"><label class="sr" for="q">Buscar notícias</label><input id="q" name="q" type="search" placeholder="Buscar notícias" value="${esc(q)}"><button type="submit">Buscar</button></form></div>${socialIconsCompact(social)}</div></header>
 <div class="menu"><div class="menu-in"><nav aria-label="Editorias"><a href="/"${!current ? ' aria-current="page"' : ''}>Início</a>${cats.map((c) => `<a href="/categoria/${esc(c.slug)}"${current === c.slug ? ' aria-current="page"' : ''}>${esc(c.name)}</a>`).join('')}<a href="/colunistas"${current === 'colunistas' ? ' aria-current="page"' : ''}>Colunistas</a></nav></div></div>
 <main id="conteudo" class="wrap">${body}</main>
-<footer class="rodape"><div class="rodape-in"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p>${socialButtons(social)}<p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
+<footer class="rodape"><div class="rodape-in"><img class="rodape-mascote" src="/mascote-pinho-peq.png" alt="" loading="lazy" width="48" height="60"><img src="/logo-escuro.svg" alt="Portal do Pinhão"><p>Notícias de Curitiba e do Paraná, todos os dias.</p>${socialButtons(social)}<p>© ${new Date().getFullYear()} Portal do Pinhão</p></div></footer>
 <script src="/track.js" defer></script></body></html>`;
 }
 
 const foto = (a, alt = true) => a.image ? `<div class="foto"><img src="${esc(imgUrl(a.image))}" alt="${alt ? esc(a.title) : ''}" loading="lazy"></div>` : `<div class="foto" aria-hidden="true">PORTAL DO PINHÃO</div>`;
 const link = (a) => `/noticia/${esc(a.slug)}`;
 
-export function homeView({ lead, apoio, feed, page, pages, social = [] }) {
+export function homeView({ lead, apoio, feed, page, pages, social = [], livros = [] }) {
   if (!lead) return `<p class="vazio">Ainda não há notícias publicadas.</p>`;
   return `<div class="destaque">
   <article class="lead">${foto(lead)}<a class="tag" href="/categoria/${esc(lead.cat_slug || '')}">${esc(lead.cat_name || '')}</a>
     <h2><a href="${link(lead)}">${esc(lead.title)}</a></h2><p class="res">${esc(excerptOf(lead))}</p></article>
   <aside class="apoio" aria-label="Outras notícias em destaque">${apoio.map((a) => `<article>${a.image ? foto(a, false) : ''}<a class="tag" href="/categoria/${esc(a.cat_slug || '')}">${esc(a.cat_name || '')}</a><h3><a href="${link(a)}">${esc(a.title)}</a></h3></article>`).join('')}</aside></div>
 ${socialBand(social)}
-${feed.length ? `<section aria-labelledby="ult"><div class="secao"><h2 id="ult">Últimas notícias</h2></div><div class="feed">${feed.map(feedCard).join('')}</div>${pager(page, pages)}</section>` : ''}`;
+${feed.length ? `<section aria-labelledby="ult"><div class="secao"><h2 id="ult">Últimas notícias</h2></div><div class="feed">${feed.map(feedCard).join('')}</div>${pager(page, pages)}</section>` : ''}
+${livrosVitrine(livros)}`;
+}
+/* vitrine de livros em destaque, selecionados na admin */
+export function livrosVitrine(livros) {
+  if (!livros.length) return '';
+  return `<section aria-labelledby="livros-destaque"><div class="secao"><h2 id="livros-destaque">Livros dos nossos colunistas</h2></div>
+<div class="livros-grade">${livros.map((b) => `<a class="livro-card" href="/colunistas/${esc(b.colunista_slug)}/livros/${esc(b.slug)}">
+<div class="livro-capa">${b.cover ? `<img src="${esc(imgUrl(b.cover))}" alt="Capa de ${esc(b.title)}" loading="lazy">` : `<span aria-hidden="true">${esc(b.title.slice(0, 1))}</span>`}</div>
+<h3>${esc(b.title)}</h3><p class="livro-autor">${esc(b.colunista_nome)}</p></a>`).join('')}</div></section>`;
 }
 /* card do feed: o card inteiro é um link para a notícia */
 export const feedCard = (a) => `<a class="fcard" href="${link(a)}">
@@ -116,7 +135,8 @@ ${a.columnist_id ? `<a class="colunista-selo" href="/colunistas/${esc(a.columnis
 ${a.image ? `<figure><img src="${esc(imgUrl(a.image))}" alt="${esc(a.title)}">${a.image_credit ? `<figcaption>${esc(a.image_credit)}</figcaption>` : ''}</figure>` : ''}
 ${video ? `<div class="video-embed video-${video.platform}"><iframe src="${esc(video.src)}" title="Vídeo da notícia" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
 <div class="corpo">${a.body}</div>
-${a.tags ? `<p class="tags">Assuntos: ${a.tags.split(',').map((t) => esc(t.trim())).filter(Boolean).join(', ')}</p>` : ''}</article>
+${a.tags ? `<p class="tags">Assuntos: ${a.tags.split(',').map((t) => esc(t.trim())).filter(Boolean).join(', ')}</p>` : ''}
+${compartilharBotoes()}</article>
 ${related.length ? `<section><div class="secao"><h2>Leia também</h2></div><div class="cards">${related.map(cardHtml).join('')}</div></section>` : ''}`;
 }
 
@@ -205,8 +225,8 @@ ${porDia.length ? `<div class="grafico" role="img" aria-label="Gráfico de visua
 ${topArtigos.length ? `<table><thead><tr><th>Título</th><th>Categoria</th><th>Views</th></tr></thead><tbody>${topArtigos.map((a) => `<tr><td><a href="/admin/noticias/${a.id}"><b>${esc(a.title)}</b></a></td><td>${esc(a.cat_name || '—')}</td><td>${a.views}</td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Ainda sem visualizações suficientes.</p>`}
 </div>
 <div>
-<h2>Conversões: cliques em redes sociais (7 dias)</h2>
-${conversoes.length ? `<table><thead><tr><th>Rede</th><th>Cliques</th></tr></thead><tbody>${conversoes.map((c) => `<tr><td>${NETWORK_LABEL[c.meta] || esc(c.meta)}</td><td>${c.c}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${totalConversoes}</b></td></tr></tbody></table>` : `<p class="vazio">Nenhum clique em redes sociais registrado ainda.</p>`}
+<h2>Conversões: redes sociais (7 dias)</h2>
+${conversoes.length ? `<table><thead><tr><th>Ação</th><th>Cliques</th></tr></thead><tbody>${conversoes.map((c) => `<tr><td>${c.type === 'share_click' ? 'Compartilhar' : 'Seguir'}: ${NETWORK_LABEL[c.meta] || esc(c.meta)}</td><td>${c.c}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${totalConversoes}</b></td></tr></tbody></table>` : `<p class="vazio">Nenhum clique em redes sociais registrado ainda.</p>`}
 
 <h2 style="margin-top:24px">Visualizações por tipo de página (7 dias)</h2>
 ${porPagina.length ? `<table><thead><tr><th>Página</th><th>Views</th></tr></thead><tbody>${porPagina.map((p) => `<tr><td>${PAGE_KIND_LABEL[p.kind] || esc(p.kind)}</td><td>${p.c}</td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Sem dados ainda.</p>`}
@@ -238,7 +258,14 @@ export function articleForm({ a, cats, columnists, csrf, erros = [] }) {
 <label for="titulo">Título</label><input class="titulo" id="titulo" name="title" type="text" required value="${esc(a.title)}" placeholder="Escreva o título da notícia">
 <label for="resumo">Resumo</label><input id="resumo" name="summary" type="text" maxlength="220" value="${esc(a.summary)}" placeholder="Uma frase curta para apresentar a notícia nos cards.">
 <label for="texto">Texto da notícia</label>
-<div class="barra" role="toolbar" aria-label="Formatação"><button type="button" data-cmd="bold" title="Negrito"><b>B</b></button><button type="button" data-cmd="italic" title="Itálico"><i>I</i></button><button type="button" data-cmd="formatBlock:h2" title="Intertítulo">Título</button><button type="button" data-cmd="insertUnorderedList" title="Lista">• Lista</button><button type="button" data-cmd="formatBlock:blockquote" title="Citação">“ Citação</button><button type="button" data-cmd="link" title="Link">Link</button><button type="button" data-cmd="removeFormat" title="Limpar formatação">Limpar</button></div>
+<div class="barra" role="toolbar" aria-label="Formatação">
+<div class="barra-grupo"><button type="button" data-cmd="undo" title="Desfazer (Ctrl+Z)">↺</button><button type="button" data-cmd="redo" title="Refazer (Ctrl+Y)">↻</button></div><span class="barra-sep"></span>
+<div class="barra-grupo"><button type="button" data-cmd="formatBlock:p" title="Parágrafo normal">¶</button><button type="button" data-cmd="formatBlock:h2" title="Título">H2</button><button type="button" data-cmd="formatBlock:h3" title="Subtítulo">H3</button></div><span class="barra-sep"></span>
+<div class="barra-grupo"><button type="button" data-cmd="bold" title="Negrito (Ctrl+B)"><b>B</b></button><button type="button" data-cmd="italic" title="Itálico (Ctrl+I)"><i>I</i></button><button type="button" data-cmd="underline" title="Sublinhado (Ctrl+U)"><u>S</u></button></div><span class="barra-sep"></span>
+<div class="barra-grupo"><button type="button" data-cmd="justifyLeft" title="Alinhar à esquerda"><svg viewBox="0 0 18 14" fill="currentColor"><rect width="18" height="2"/><rect width="11" height="2" y="6"/><rect width="14" height="2" y="12"/></svg></button><button type="button" data-cmd="justifyCenter" title="Centralizar"><svg viewBox="0 0 18 14" fill="currentColor"><rect width="18" height="2"/><rect x="3.5" width="11" height="2" y="6"/><rect x="2" width="14" height="2" y="12"/></svg></button><button type="button" data-cmd="justifyRight" title="Alinhar à direita"><svg viewBox="0 0 18 14" fill="currentColor"><rect width="18" height="2"/><rect x="7" width="11" height="2" y="6"/><rect x="4" width="14" height="2" y="12"/></svg></button></div><span class="barra-sep"></span>
+<div class="barra-grupo"><button type="button" data-cmd="insertUnorderedList" title="Lista com marcadores">• Lista</button><button type="button" data-cmd="insertOrderedList" title="Lista numerada">1. Lista</button><button type="button" data-cmd="formatBlock:blockquote" title="Citação">“ Cit.</button></div><span class="barra-sep"></span>
+<div class="barra-grupo"><button type="button" data-cmd="link" title="Inserir link">Link</button><button type="button" data-cmd="removeFormat" title="Limpar formatação">Limpar</button></div>
+</div>
 <div id="texto" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Texto da notícia">${a.body || ''}</div>
 <textarea name="body" id="body" hidden></textarea>
 <p class="ajuda">Campos obrigatórios para publicar: título, categoria e texto. Para salvar um rascunho basta o título.</p>
@@ -303,7 +330,7 @@ ${c.photo ? `<div class="prev"><img src="${esc(imgUrl(c.photo))}" alt="Foto atua
 ${!isNew ? `<div class="caixa" style="margin-top:24px">
 <h2 style="margin-top:0">Livros e artigos deste colunista</h2>
 <div class="topo" style="border:0;margin:0 0 6px;padding:0"><h3 style="margin:0">Livros</h3><a class="btn peq" href="/admin/colunistas/${c.id}/livros/novo">Adicionar livro</a></div>
-${books.length ? `<table><thead><tr><th>Título</th><th></th></tr></thead><tbody>${books.map((b) => `<tr><td><a href="/admin/colunistas/${c.id}/livros/${b.id}"><b>${esc(b.title)}</b></a></td><td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}/livros/${b.id}">Editar</a>
+${books.length ? `<table><thead><tr><th></th><th>Título</th><th>Vitrine</th><th></th></tr></thead><tbody>${books.map((b) => `<tr><td>${b.cover ? `<img src="${esc(imgUrl(b.cover))}" alt="" style="width:32px;height:44px;object-fit:cover">` : ''}</td><td><a href="/admin/colunistas/${c.id}/livros/${b.id}"><b>${esc(b.title)}</b></a></td><td>${b.featured ? '<span class="st published">Em destaque</span>' : ''}</td><td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}/livros/${b.id}">Editar</a>
 <form method="post" action="/admin/colunistas/${c.id}/livros/${b.id}/apagar" data-confirm="Apagar o livro &quot;${esc(b.title)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form></td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Nenhum livro cadastrado. Cada livro ganha uma página própria com a sinopse no site.</p>`}
 <h3 style="margin:24px 0 6px">Artigos</h3>
 ${arts.length ? articlesTable(arts, csrf) : `<p class="vazio">Nenhuma notícia vinculada a este colunista ainda. <a href="/admin/noticias/nova"><b>Escreva uma notícia</b></a> e selecione este colunista.</p>`}
@@ -312,16 +339,24 @@ ${arts.length ? articlesTable(arts, csrf) : `<p class="vazio">Nenhuma notícia v
 
 export function bookForm({ col, b, csrf }) {
   const isNew = !b.id;
-  return `<form method="post" action="${isNew ? `/admin/colunistas/${col.id}/livros` : `/admin/colunistas/${col.id}/livros/${b.id}`}">
+  return `<form method="post" enctype="multipart/form-data" action="${isNew ? `/admin/colunistas/${col.id}/livros` : `/admin/colunistas/${col.id}/livros/${b.id}`}">
 <input type="hidden" name="_csrf" value="${esc(csrf)}">
 <div class="topo"><h1>${isNew ? 'Novo livro' : 'Editar livro'}</h1><span class="crumb">${esc(col.name)}</span></div>
-<div class="caixa" style="max-width:640px">
+<div class="duas">
+<div class="caixa">
 <label for="titulo" style="margin-top:0">Título do livro</label><input id="titulo" name="title" type="text" required maxlength="160" value="${esc(b.title)}">
 <label for="sinopse">Sinopse</label><textarea id="sinopse" name="synopsis" rows="10" placeholder="Um resumo do livro para os leitores do site.">${esc(b.synopsis || '')}</textarea>
 <p class="ajuda">O livro ganha uma página própria em /colunistas/${esc(col.slug)}/livros/… com esse título e a sinopse.</p>
+<label class="check"><input type="checkbox" name="featured" value="1"${b.featured ? ' checked' : ''}> Destacar na vitrine de livros da home</label>
 <div class="acoes-form"><button class="btn pri">${isNew ? 'Criar livro' : 'Salvar alterações'}</button></div>
+</div>
+<div class="caixa">
+<h2 style="margin-top:0">Capa</h2>
+${b.cover ? `<div class="prev"><img src="${esc(imgUrl(b.cover))}" alt="Capa atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover capa</label></div>` : ''}
+<label for="capa" style="margin-top:${b.cover ? '14px' : '0'}">${b.cover ? 'Trocar capa' : 'Enviar capa'}</label><input id="capa" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: proporção de capa de livro (2:3).</p>
+</div>
 </div></form>
-${!isNew ? `<form method="post" action="/admin/colunistas/${col.id}/livros/${b.id}/apagar" data-confirm="Apagar o livro &quot;${esc(b.title)}&quot;?" style="margin-top:14px;max-width:640px"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn perigo">Apagar livro</button></form>` : ''}`;
+${!isNew ? `<form method="post" action="/admin/colunistas/${col.id}/livros/${b.id}/apagar" data-confirm="Apagar o livro &quot;${esc(b.title)}&quot;?" style="margin-top:14px"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn perigo">Apagar livro</button></form>` : ''}`;
 }
 
 export function mediaView({ files, csrf }) {

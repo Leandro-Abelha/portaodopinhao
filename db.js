@@ -92,6 +92,8 @@ export const setup = () => (ready ??= (async () => {
     title text NOT NULL, slug text NOT NULL, synopsis text DEFAULT '', position int NOT NULL DEFAULT 0,
     created_at timestamptz DEFAULT now(), UNIQUE (columnist_id, slug)
   )`);
+  await run(`ALTER TABLE columnist_books ADD COLUMN IF NOT EXISTS cover text`);
+  await run(`ALTER TABLE columnist_books ADD COLUMN IF NOT EXISTS featured boolean NOT NULL DEFAULT false`);
 
   await run(`CREATE TABLE IF NOT EXISTS pageviews (
     id bigserial PRIMARY KEY, path text NOT NULL, kind text NOT NULL,

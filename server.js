@@ -106,8 +106,9 @@ function checkCsrf(req, res, next) {
 
 /* ---------------- texto seguro ---------------- */
 const cleanBody = (html) => sanitizeHtml(html || '', {
-  allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'a', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3'],
-  allowedAttributes: { a: ['href', 'rel', 'target'] },
+  allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3'],
+  allowedAttributes: { a: ['href', 'rel', 'target'], '*': ['style'] },
+  allowedStyles: { '*': { 'text-align': [/^left$/, /^center$/, /^right$/, /^justify$/] } },
   allowedSchemes: ['http', 'https', 'mailto'],
   transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }, true), div: 'p' },
 }).trim();
@@ -120,7 +121,7 @@ const visitorHash = (req) => crypto.createHash('sha256')
   .update(`${new Date().toISOString().slice(0, 10)}|${req.ip}|${req.headers['user-agent'] || ''}|${process.env.ANALYTICS_SALT || 'pinhao'}`).digest('hex').slice(0, 32);
 const logView = (req, kind, path, articleId = null) =>
   run('INSERT INTO pageviews (path, kind, article_id, visitor_hash) VALUES (?,?,?,?)', [path, kind, articleId, visitorHash(req)]).catch(() => {});
-const EVENT_TYPES = ['social_click'];
+const EVENT_TYPES = ['social_click', 'share_click'];
 app.post('/evento', express.json({ limit: '2kb' }), (req, res) => {
   const tipo = cleanLine(req.body?.tipo, 40);
   const meta = cleanLine(req.body?.meta, 60);
@@ -147,8 +148,10 @@ app.get('/', async (req, res) => {
   const pages = Math.max(1, Math.ceil(feed.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, parseInt(req.query.pagina, 10) || 1));
   const social = await socialRows();
+  const livros = await all(`SELECT b.*, c.name colunista_nome, c.slug colunista_slug FROM columnist_books b
+    JOIN columnists c ON c.id = b.columnist_id WHERE b.featured AND c.active ORDER BY b.id DESC LIMIT 8`);
   logView(req, 'home', '/');
-  await site(res, { social, body: V.homeView({ lead, apoio, feed: feed.slice((page - 1) * PER_PAGE, page * PER_PAGE), page, pages, social }) });
+  await site(res, { social, body: V.homeView({ lead, apoio, feed: feed.slice((page - 1) * PER_PAGE, page * PER_PAGE), page, pages, social, livros }) });
 });
 
 app.get('/noticia/:slug', async (req, res, next) => {
@@ -251,7 +254,7 @@ app.get('/admin/estatisticas', async (req, res) => {
   const porDia = await all(`SELECT (created_at AT TIME ZONE 'America/Sao_Paulo')::date::text dia, COUNT(*)::int c
     FROM pageviews WHERE ${D30} GROUP BY dia ORDER BY dia`);
   const porPagina = await all(`SELECT kind, COUNT(*)::int c FROM pageviews WHERE ${D7} GROUP BY kind ORDER BY c DESC`);
-  const conversoes = await all(`SELECT meta, COUNT(*)::int c FROM events WHERE type = 'social_click' AND ${D7} GROUP BY meta ORDER BY c DESC`);
+  const conversoes = await all(`SELECT type, meta, COUNT(*)::int c FROM events WHERE ${D7} GROUP BY type, meta ORDER BY c DESC`);
   page(req, res, { title: 'Estatísticas', crumb: 'ESTATÍSTICAS', active: '/admin/estatisticas', body: V.statsView({ stats, topArtigos, porDia, porPagina, conversoes }), ...flash(req) });
 });
 
@@ -425,7 +428,7 @@ const renderBookForm = async (req, res, col, b, erros = [], code = 200) =>
 app.get('/admin/colunistas/:id/livros/novo', async (req, res, next) => {
   const col = await one('SELECT * FROM columnists WHERE id = ?', [Number(req.params.id) || 0]);
   if (!col) return next();
-  await renderBookForm(req, res, col, { title: '', synopsis: '' });
+  await renderBookForm(req, res, col, { title: '', synopsis: '', cover: '', featured: 0 });
 });
 app.get('/admin/colunistas/:id/livros/:bookId', async (req, res, next) => {
   const col = await one('SELECT * FROM columnists WHERE id = ?', [Number(req.params.id) || 0]);
@@ -441,17 +444,28 @@ async function saveBook(req, res, colId, id) {
   if (id && !old) return res.status(404).send('Livro não encontrado.');
   const title = cleanLine(req.body.title, 160);
   const synopsis = String(req.body.synopsis || '').slice(0, 6000).trim();
-  if (!title) return renderBookForm(req, res, col, { id, title, synopsis }, ['Preencha o título do livro.'], 422);
+  const featured = req.body.featured ? 1 : 0;
+
+  const erros = [];
+  if (req.uploadError) erros.push(req.uploadError + ' Os demais campos preenchidos permanecem.');
+  if (!title) erros.push('Preencha o título do livro.');
+  if (erros.length) return renderBookForm(req, res, col, { id, title, synopsis, featured, cover: old?.cover || '' }, erros, 422);
+
+  let cover = old?.cover || '';
+  if (req.file) { await removeImage(old?.cover); cover = await storeImage(req.file); }
+  else if (req.body.remove_image) { await removeImage(old?.cover); cover = ''; }
 
   const slug = old && old.title === title ? old.slug : await uniqueBookSlug(colId, title, id || 0);
-  if (old) await run('UPDATE columnist_books SET title=?, slug=?, synopsis=? WHERE id=?', [title, slug, synopsis, id]);
-  else await run('INSERT INTO columnist_books (columnist_id, title, slug, synopsis, position) VALUES (?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnist_books WHERE columnist_id = ?))', [colId, title, slug, synopsis, colId]);
+  const vals = [title, slug, synopsis, cover || null, featured];
+  if (old) await run('UPDATE columnist_books SET title=?, slug=?, synopsis=?, cover=?, featured=? WHERE id=?', [...vals, id]);
+  else await run('INSERT INTO columnist_books (columnist_id, title, slug, synopsis, cover, featured, position) VALUES (?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM columnist_books WHERE columnist_id = ?))', [colId, title, slug, synopsis, cover || null, featured, colId]);
   res.redirect(`/admin/colunistas/${colId}?ok=col`);
 }
-app.post('/admin/colunistas/:id/livros', checkCsrf, (req, res) => saveBook(req, res, Number(req.params.id) || 0, 0));
-app.post('/admin/colunistas/:id/livros/:bookId', checkCsrf, (req, res) => saveBook(req, res, Number(req.params.id) || 0, Number(req.params.bookId) || 0));
+app.post('/admin/colunistas/:id/livros', takeUpload, checkCsrf, (req, res) => saveBook(req, res, Number(req.params.id) || 0, 0));
+app.post('/admin/colunistas/:id/livros/:bookId', takeUpload, checkCsrf, (req, res) => saveBook(req, res, Number(req.params.id) || 0, Number(req.params.bookId) || 0));
 app.post('/admin/colunistas/:id/livros/:bookId/apagar', checkCsrf, async (req, res) => {
-  await run('DELETE FROM columnist_books WHERE id = ? AND columnist_id = ?', [Number(req.params.bookId) || 0, Number(req.params.id) || 0]);
+  const b = await one('SELECT cover FROM columnist_books WHERE id = ? AND columnist_id = ?', [Number(req.params.bookId) || 0, Number(req.params.id) || 0]);
+  if (b) { await run('DELETE FROM columnist_books WHERE id = ? AND columnist_id = ?', [Number(req.params.bookId) || 0, Number(req.params.id) || 0]); await removeImage(b.cover); }
   res.redirect(`/admin/colunistas/${Number(req.params.id) || 0}?ok=col`);
 });
 
@@ -505,7 +519,7 @@ app.post('/admin/conta', checkCsrf, async (req, res) => {
 });
 
 /* =============== erros =============== */
-app.use(async (req, res) => res.status(404).send(V.siteLayout({ title: 'Página não encontrada', cats: await cats(), body: `<div class="vazio"><h2>Página não encontrada</h2><p>O endereço pode ter mudado. <a href="/"><b>Volte para a página inicial</b></a> ou use a busca.</p></div>` })));
+app.use(async (req, res) => res.status(404).send(V.siteLayout({ title: 'Página não encontrada', cats: await cats(), body: `<div class="vazio vazio-404"><img src="/mascote-pinho.png" alt="" loading="lazy" width="180" height="225"><h2>Essa página fugiu do noticiário</h2><p>O endereço pode ter mudado. <a href="/"><b>Volte para a página inicial</b></a> ou use a busca.</p></div>` })));
 app.use((err, req, res, _next) => { console.error(err); res.status(500).send('Algo deu errado. Tente novamente em instantes.'); });
 
 if (!process.env.VERCEL) app.listen(PORT, () => console.log(`\nPortal do Pinhão em http://localhost:${PORT}   (painel: http://localhost:${PORT}/admin)\n`));
