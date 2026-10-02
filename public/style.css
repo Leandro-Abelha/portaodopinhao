@@ -109,6 +109,8 @@ img{max-width:100%;display:block}
 .corpo a{color:var(--verde);text-decoration:underline}
 .corpo blockquote{border-left:4px solid var(--verm);padding-left:16px;font-size:22px;font-style:italic}
 .corpo h2,.corpo h3{font:700 28px/1.1 var(--hd);margin:1.2em 0 .4em}
+.corpo img{max-width:100%;height:auto;margin:1.2em auto}
+.corpo hr{border:0;border-top:2px solid var(--linha);margin:2em 0}
 .tags{margin-top:24px;font-size:14px;color:var(--suave)}
 .compartilhar{display:flex;align-items:center;gap:10px;margin-top:28px;padding-top:20px;border-top:1px solid var(--linha)}
 .compartilhar span:first-child{font:700 13px var(--hd);letter-spacing:.05em;text-transform:uppercase;color:var(--suave);margin-right:4px}

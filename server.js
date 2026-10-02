@@ -105,12 +105,20 @@ function checkCsrf(req, res, next) {
 }
 
 /* ---------------- texto seguro ---------------- */
+const UPLOADS_PREFIX = `${SB_URL}/storage/v1/object/public/uploads/`;
 const cleanBody = (html) => sanitizeHtml(html || '', {
-  allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3'],
-  allowedAttributes: { a: ['href', 'rel', 'target'], '*': ['style'] },
-  allowedStyles: { '*': { 'text-align': [/^left$/, /^center$/, /^right$/, /^justify$/] } },
+  allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'span', 'img', 'hr'],
+  allowedAttributes: { a: ['href', 'rel', 'target'], img: ['src', 'alt'], '*': ['style'] },
+  allowedStyles: {
+    '*': {
+      'text-align': [/^left$/, /^center$/, /^right$/, /^justify$/],
+      'font-size': [/^(14|17|22|28)px$/],
+      'line-height': [/^(1\.3|1\.7|2\.2)$/],
+    },
+  },
   allowedSchemes: ['http', 'https', 'mailto'],
   transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }, true), div: 'p' },
+  exclusiveFilter: (frame) => frame.tag === 'img' && !(frame.attribs.src || '').startsWith(UPLOADS_PREFIX),
 }).trim();
 const plain = (h) => h.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 const cleanLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -269,6 +277,12 @@ const blank = { title: '', summary: '', body: '', category_id: '', columnist_id:
 const renderForm = async (req, res, a, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: a.id ? 'Editar notícia' : 'Nova notícia', crumb: a.id ? 'NOTÍCIAS / EDITAR' : 'NOTÍCIAS / NOVA PUBLICAÇÃO', active: a.id ? '/admin/noticias' : '/admin/noticias/nova',
     erro: erros.map(V.esc).join('<br>'), body: V.articleForm({ a, cats: await cats(), columnists: await allColumnists(), csrf: req.csrf }) }));
+
+app.post('/admin/editor/imagem', takeUpload, checkCsrf, async (req, res) => {
+  if (req.uploadError || !req.file) return res.status(400).json({ erro: req.uploadError || 'Escolha uma imagem JPG, PNG ou WEBP.' });
+  const name = await storeImage(req.file);
+  res.json({ url: V.imgUrl(name) });
+});
 
 app.get('/admin/noticias/nova', (req, res) => renderForm(req, res, { ...blank, author: req.user.name }));
 app.get('/admin/noticias/:id', async (req, res, next) => {
