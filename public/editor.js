@@ -39,7 +39,12 @@ if (texto) {
     if (!achados.size) { const b = blocoDe(range.startContainer); if (b) achados.add(b); }
     return [...achados];
   }
-  const aplicarEspacamento = (valor) => blocosSelecionados().forEach((b) => { b.style.lineHeight = valor; });
+  /* sem bloco (texto solto, sem <p> ainda): força criar um <p> antes, para o estilo ser salvo de verdade */
+  const aplicarEspacamento = (valor) => {
+    let blocos = blocosSelecionados();
+    if (!blocos.length) { document.execCommand('formatBlock', false, 'p'); blocos = blocosSelecionados(); }
+    blocos.forEach((b) => { b.style.lineHeight = valor; });
+  };
 
   /* upload de imagem para dentro do corpo do texto */
   const imgInput = document.createElement('input');
