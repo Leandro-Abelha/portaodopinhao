@@ -42,19 +42,38 @@ export function videoEmbed(raw) {
 }
 
 /* =============== REDES SOCIAIS =============== */
-export const NETWORK_LABEL = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube' };
+/* redes que o painel oferece para "seguir" (além da opção de digitar uma rede própria) */
+export const NETWORK_LABEL = {
+  facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', x: 'X (Twitter)', tiktok: 'TikTok', whatsapp: 'WhatsApp',
+  telegram: 'Telegram', linkedin: 'LinkedIn', threads: 'Threads', spotify: 'Spotify', email: 'E-mail', copiar: 'Copiar link',
+};
+export const FOLLOW_CATALOG = ['facebook', 'instagram', 'youtube', 'x', 'tiktok', 'whatsapp', 'telegram', 'linkedin', 'threads', 'spotify'];
+/* botões de compartilhar que podem aparecer embaixo de cada notícia */
+export const SHARE_OPTIONS = [['facebook', 'Facebook'], ['whatsapp', 'WhatsApp'], ['instagram', 'Instagram (copia o link)'], ['x', 'X (Twitter)'], ['telegram', 'Telegram'], ['linkedin', 'LinkedIn'], ['email', 'E-mail'], ['copiar', 'Copiar link']];
+export const DEFAULT_SHARE = ['facebook', 'whatsapp', 'instagram'];
+export const networkName = (s) => s.name || NETWORK_LABEL[s.network] || s.network;
 const SOCIAL_ICON = {
   facebook: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.2-1.5 1.6-1.5h1.7V3.7C15.9 3.6 15 3.5 13.9 3.5c-2.7 0-4.4 1.6-4.4 4.6V10H6.8v3.1h2.7v8h4z"/></svg>`,
   instagram: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>`,
   youtube: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor"/></svg>`,
   whatsapp: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5A9.3 9.3 0 003.4 16l-1.1 5.5 5.6-1.5a9.3 9.3 0 004.1 1 9.3 9.3 0 100-18.5zm0 17a7.6 7.6 0 01-3.9-1.1l-.3-.2-3.3.9.9-3.2-.2-.3A7.7 7.7 0 1112 19.5zm4.2-5.7c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.2 6.2 0 01-1.9-1.2 7 7 0 01-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.2-.4a.5.5 0 000-.4c0-.1-.5-1.3-.7-1.8s-.4-.4-.5-.4h-.5a1 1 0 00-.7.3 2.8 2.8 0 00-.9 2.1c0 1.3.9 2.5 1.1 2.7.1.2 1.8 2.7 4.3 3.7a6.9 6.9 0 001.4.5 3 3 0 001.4.1c.4-.1 1.4-.5 1.5-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/></svg>`,
+  x: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h4.2l4.1 5.6L17.2 4H19l-5.9 6.8L20 20h-4.2l-4.4-6L6.2 20H4.5l6.3-7.2z"/></svg>`,
+  tiktok: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 3c.3 2.2 1.7 3.8 3.9 4v2.9c-1.4 0-2.7-.4-3.9-1.2v6.2a6 6 0 11-5.2-6v3a3 3 0 103 3V3z"/></svg>`,
+  telegram: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 3.5L3 10.8l5.6 2 1.6 5.4 3-3.4 4.6 3.5z"/></svg>`,
+  linkedin: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 9h3v10H5zM6.5 4.5a1.8 1.8 0 110 3.6 1.8 1.8 0 010-3.6zM10 9h2.9v1.4c.5-.9 1.6-1.6 3.1-1.6 3 0 3.6 2 3.6 4.5V19h-3v-5c0-1.2 0-2.6-1.6-2.6s-1.8 1.2-1.8 2.5V19h-3z"/></svg>`,
+  threads: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M16.2 9.4c-.6-2-2.2-3.1-4.4-3.1-3 0-4.8 2.2-4.8 5.7s1.8 5.7 4.9 5.7c2.4 0 4.2-1.2 4.2-3.3 0-1.9-1.6-2.8-3.6-2.8-1.6 0-2.8.7-2.8 1.9s1 1.8 2.1 1.8c1.7 0 2.6-1.5 2.6-3.7"/></svg>`,
+  spotify: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M7.5 9.6c3.1-.9 6.4-.6 9.1.9M8 12.6c2.5-.6 5-.4 7.4.9M8.6 15.4c2-.4 3.9-.2 5.8.7"/></svg>`,
+  email: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7.5l8.5 6 8.5-6"/></svg>`,
+  copiar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>`,
+  link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/></svg>`,
 };
-/* Facebook, WhatsApp e Instagram embaixo de cada notícia/coluna */
-function compartilharBotoes() {
+const iconFor = (network) => SOCIAL_ICON[network] || SOCIAL_ICON.link;
+/* botões de compartilhar embaixo de cada notícia/coluna: as redes vêm da escolha feita no painel */
+function compartilharBotoes(redes = DEFAULT_SHARE) {
+  const itens = SHARE_OPTIONS.filter(([k]) => redes.includes(k));
+  if (!itens.length) return '';
   return `<div class="compartilhar" aria-label="Compartilhar esta notícia"><span>Compartilhar</span>
-<a href="#" class="share-btn" data-share="facebook" aria-label="Compartilhar no Facebook">${SOCIAL_ICON.facebook}</a>
-<a href="#" class="share-btn" data-share="whatsapp" aria-label="Compartilhar no WhatsApp">${SOCIAL_ICON.whatsapp}</a>
-<a href="#" class="share-btn" data-share="instagram" aria-label="Copiar link para compartilhar no Instagram">${SOCIAL_ICON.instagram}</a>
+${itens.map(([k, nome]) => `<a href="#" class="share-btn" data-share="${k}" aria-label="${k === 'instagram' || k === 'copiar' ? 'Copiar o link para compartilhar' + (k === 'instagram' ? ' no Instagram' : '') : 'Compartilhar ' + (k === 'email' ? 'por e-mail' : 'no ' + nome)}" title="${esc(nome)}">${iconFor(k)}</a>`).join('\n')}
 <span class="compartilhar-aviso" aria-live="polite"></span>
 </div>`;
 }
@@ -62,13 +81,13 @@ function compartilharBotoes() {
 export function socialButtons(links) {
   const active = (links || []).filter((s) => s.url);
   if (!active.length) return '';
-  return `<div class="social" aria-label="Redes sociais">${active.map((s) => `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" data-rede="${s.network}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : `<span class="social-ico">${SOCIAL_ICON[s.network]}</span>`}<span>${esc(s.name || NETWORK_LABEL[s.network])}</span></a>`).join('')}</div>`;
+  return `<div class="social" aria-label="Redes sociais">${active.map((s) => `<a class="social-btn" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" data-rede="${esc(s.network)}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : `<span class="social-ico">${iconFor(s.network)}</span>`}<span>${esc(networkName(s))}</span></a>`).join('')}</div>`;
 }
 /* Só os ícones, discretos, para o cabeçalho — aparece em toda página */
 export function socialIconsCompact(links) {
   const active = (links || []).filter((s) => s.url);
   if (!active.length) return '';
-  return `<div class="social-topo" aria-label="Redes sociais">${active.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(s.name || NETWORK_LABEL[s.network])} no ${NETWORK_LABEL[s.network]}" data-rede="${s.network}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : SOCIAL_ICON[s.network]}</a>`).join('')}</div>`;
+  return `<div class="social-topo" aria-label="Redes sociais">${active.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(networkName(s))}" title="${esc(networkName(s))}" data-rede="${esc(s.network)}">${s.photo ? `<img src="${esc(imgUrl(s.photo))}" alt="">` : iconFor(s.network)}</a>`).join('')}</div>`;
 }
 /* Faixa de destaque na home, logo abaixo da manchete */
 export function socialBand(links) {
@@ -126,7 +145,7 @@ export function listView({ heading, items, note = '' }) {
 ${items.length ? `<div class="cards">${items.map(cardHtml).join('')}</div>` : `<p class="vazio">Nenhuma notícia encontrada.</p>`}`;
 }
 
-export function articleView(a, related) {
+export function articleView(a, related, redesShare = DEFAULT_SHARE) {
   const video = videoEmbed(a.video_url);
   return `<article class="materia"><a class="tag" href="/categoria/${esc(a.cat_slug || '')}">${esc(a.cat_name || '')}</a>
 <h1>${esc(a.title)}</h1>${a.summary ? `<p class="linha-fina">${esc(a.summary)}</p>` : ''}
@@ -136,7 +155,7 @@ ${a.image ? `<figure><img src="${esc(imgUrl(a.image))}" alt="${esc(a.title)}">${
 ${video ? `<div class="video-embed video-${video.platform}"><iframe src="${esc(video.src)}" title="Vídeo da notícia" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
 <div class="corpo">${a.body}</div>
 ${a.tags ? `<p class="tags">Assuntos: ${a.tags.split(',').map((t) => esc(t.trim())).filter(Boolean).join(', ')}</p>` : ''}
-${compartilharBotoes()}</article>
+${compartilharBotoes(redesShare)}</article>
 ${related.length ? `<section><div class="secao"><h2>Leia também</h2></div><div class="cards">${related.map(cardHtml).join('')}</div></section>` : ''}`;
 }
 
@@ -205,7 +224,7 @@ export function dashboardView({ counts, recent, csrf }) {
 const PAGE_KIND_LABEL = { home: 'Início', article: 'Notícias', category: 'Categorias', search: 'Busca', columnist: 'Colunistas' };
 const diaCurto = (s) => { const [, m, d] = s.split('-'); return `${d}/${m}`; };
 
-export function statsView({ stats, topArtigos, porDia, porPagina, conversoes }) {
+export function statsView({ stats, topArtigos, porDia, porPagina, conversoes, nomes = {} }) {
   const maxDia = Math.max(1, ...porDia.map((d) => d.c));
   const totalConversoes = conversoes.reduce((n, c) => n + c.c, 0);
   return `<div class="topo"><h1>Estatísticas</h1></div>
@@ -226,7 +245,7 @@ ${topArtigos.length ? `<table><thead><tr><th>Título</th><th>Categoria</th><th>V
 </div>
 <div>
 <h2>Conversões: redes sociais (7 dias)</h2>
-${conversoes.length ? `<table><thead><tr><th>Ação</th><th>Cliques</th></tr></thead><tbody>${conversoes.map((c) => `<tr><td>${c.type === 'share_click' ? 'Compartilhar' : 'Seguir'}: ${NETWORK_LABEL[c.meta] || esc(c.meta)}</td><td>${c.c}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${totalConversoes}</b></td></tr></tbody></table>` : `<p class="vazio">Nenhum clique em redes sociais registrado ainda.</p>`}
+${conversoes.length ? `<table><thead><tr><th>Ação</th><th>Cliques</th></tr></thead><tbody>${conversoes.map((c) => `<tr><td>${c.type === 'share_click' ? 'Compartilhar' : 'Seguir'}: ${esc(nomes[c.meta] || NETWORK_LABEL[c.meta] || c.meta)}</td><td>${c.c}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${totalConversoes}</b></td></tr></tbody></table>` : `<p class="vazio">Nenhum clique em redes sociais registrado ainda.</p>`}
 
 <h2 style="margin-top:24px">Visualizações por tipo de página (7 dias)</h2>
 ${porPagina.length ? `<table><thead><tr><th>Página</th><th>Views</th></tr></thead><tbody>${porPagina.map((p) => `<tr><td>${PAGE_KIND_LABEL[p.kind] || esc(p.kind)}</td><td>${p.c}</td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Sem dados ainda.</p>`}
@@ -265,7 +284,7 @@ export function articleForm({ a, cats, columnists, csrf, erros = [] }) {
 <div class="barra-grupo"><button type="button" data-cmd="justifyLeft" title="Alinhar à esquerda"><svg viewBox="0 0 18 14" fill="currentColor"><rect width="18" height="2"/><rect width="11" height="2" y="6"/><rect width="14" height="2" y="12"/></svg></button><button type="button" data-cmd="justifyCenter" title="Centralizar"><svg viewBox="0 0 18 14" fill="currentColor"><rect width="18" height="2"/><rect x="3.5" width="11" height="2" y="6"/><rect x="2" width="14" height="2" y="12"/></svg></button><button type="button" data-cmd="justifyRight" title="Alinhar à direita"><svg viewBox="0 0 18 14" fill="currentColor"><rect width="18" height="2"/><rect x="7" width="11" height="2" y="6"/><rect x="4" width="14" height="2" y="12"/></svg></button></div><span class="barra-sep"></span>
 <div class="barra-grupo"><button type="button" data-cmd="insertUnorderedList" title="Lista com marcadores">• Lista</button><button type="button" data-cmd="insertOrderedList" title="Lista numerada">1. Lista</button><button type="button" data-cmd="formatBlock:blockquote" title="Citação">“ Cit.</button></div><span class="barra-sep"></span>
 <div class="barra-grupo"><select data-sel="fonte" title="Tamanho da fonte" aria-label="Tamanho da fonte"><option value="14px">Fonte: Pequena</option><option value="17px" selected>Fonte: Normal</option><option value="22px">Fonte: Grande</option><option value="28px">Fonte: Destaque</option></select>
-<select data-sel="espaco" title="Espaçamento entre linhas" aria-label="Espaçamento entre linhas"><option value="1.3">Espaço: Compacto</option><option value="1.7" selected>Espaço: Normal</option><option value="2.2">Espaço: Largo</option></select></div><span class="barra-sep"></span>
+<select data-sel="espaco" title="Espaçamento entre linhas" aria-label="Espaçamento entre linhas"><option value="1">Espaço: Simples (1,0)</option><option value="1.5" selected>Espaço: ABNT (1,5)</option><option value="2">Espaço: Duplo (2,0)</option></select></div><span class="barra-sep"></span>
 <div class="barra-grupo"><button type="button" data-cmd="imagem" title="Inserir imagem no texto">Imagem</button><button type="button" data-cmd="insertHorizontalRule" title="Linha divisória">— Linha</button><button type="button" data-cmd="link" title="Inserir link">Link</button><button type="button" data-cmd="removeFormat" title="Limpar formatação">Limpar</button></div>
 </div>
 <div id="texto" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Texto da notícia">${a.body || ''}</div>
@@ -368,17 +387,40 @@ export function mediaView({ files, csrf }) {
 ${files.length ? `<div class="grade">${files.map((f) => `<figure><img src="${esc(imgUrl(f.name))}" alt="" loading="lazy"><code>${esc(f.name)}</code>${f.used ? '<p class="ajuda">Em uso em uma notícia</p>' : `<form method="post" action="/admin/midia/apagar" data-confirm="Apagar esta imagem?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="name" value="${esc(f.name)}"><button class="btn peq perigo" style="margin-top:6px">Apagar</button></form>`}</figure>`).join('')}</div>` : `<p class="vazio">Nenhuma imagem enviada ainda.</p>`}`;
 }
 
-export function socialView({ links, csrf }) {
+export function socialView({ links, shareSel = DEFAULT_SHARE, csrf }) {
+  const livres = FOLLOW_CATALOG.filter((k) => !links.some((l) => l.network === k));
+  const card = (s) => {
+    const k = esc(s.network);
+    const custom = !NETWORK_LABEL[s.network];
+    return `<div class="caixa">
+<h3 style="margin-top:0">${custom ? 'Rede personalizada' : esc(NETWORK_LABEL[s.network])}</h3>
+<label for="${k}_url" style="margin-top:0">Link da página</label><input id="${k}_url" name="${k}_url" type="url" value="${esc(s.url)}" placeholder="https://…">
+<label for="${k}_name">Nome exibido${custom ? '' : ' (opcional)'}</label><input id="${k}_name" name="${k}_name" type="text" maxlength="60" value="${esc(s.name)}" placeholder="${esc(custom ? 'Nome da rede' : NETWORK_LABEL[s.network])}">
+${s.photo ? `<label style="margin-top:14px">Foto atual</label><div class="prev"><img src="${esc(imgUrl(s.photo))}" alt="Foto atual"><label class="check"><input type="checkbox" name="${k}_remove" value="1"> Remover foto</label></div>` : ''}
+<label for="${k}_photo">${s.photo ? 'Trocar foto' : 'Foto de perfil (opcional)'}</label><input id="${k}_photo" name="${k}_photo" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: imagem quadrada.</p>
+<label class="check" style="margin-top:16px"><input type="checkbox" name="${k}_delete" value="1"> Remover esta rede ao salvar</label>
+</div>`;
+  };
   return `<div class="topo"><h1>Redes sociais</h1></div>
-<p class="ajuda" style="margin:-8px 0 18px 0">Preencha o link da página e o nome que deve aparecer no botão. A foto é opcional — sem ela, aparece o ícone da rede. Deixe o link em branco para o botão não aparecer no site.</p>
+<p class="ajuda" style="margin:-8px 0 18px 0">Adicione quantas redes quiser. Cada rede mostra o ícone dela (ou a foto de perfil, se você enviar uma). Deixe o link em branco para a rede não aparecer no site.</p>
 <form method="post" enctype="multipart/form-data" action="/admin/redes"><input type="hidden" name="_csrf" value="${esc(csrf)}">
-<div class="redes">${links.map((s) => `<div class="caixa">
-<h3 style="margin-top:0">${NETWORK_LABEL[s.network]}</h3>
-<label for="${s.network}_url" style="margin-top:0">Link da página</label><input id="${s.network}_url" name="${s.network}_url" type="url" value="${esc(s.url)}" placeholder="https://${s.network}.com/…">
-<label for="${s.network}_name">Nome exibido</label><input id="${s.network}_name" name="${s.network}_name" type="text" maxlength="60" value="${esc(s.name)}" placeholder="${NETWORK_LABEL[s.network]}">
-${s.photo ? `<label style="margin-top:14px">Foto atual</label><div class="prev"><img src="${esc(imgUrl(s.photo))}" alt="Foto atual"><label class="check"><input type="checkbox" name="${s.network}_remove" value="1"> Remover foto</label></div>` : ''}
-<label for="${s.network}_photo">${s.photo ? 'Trocar foto' : 'Foto de perfil (opcional)'}</label><input id="${s.network}_photo" name="${s.network}_photo" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 4 MB. Ideal: imagem quadrada.</p>
-</div>`).join('')}</div>
+<h2>Redes que aparecem no site</h2>
+${links.length ? `<div class="redes">${links.map(card).join('')}</div>` : `<p class="vazio" style="margin-bottom:20px">Nenhuma rede cadastrada. Use o quadro abaixo para adicionar a primeira.</p>`}
+
+<div class="caixa" style="margin-bottom:24px;max-width:560px">
+<h3 style="margin-top:0">Adicionar outra rede</h3>
+<label for="nova_rede" style="margin-top:0">Qual rede?</label>
+<select id="nova_rede" name="nova_rede"><option value="">Escolha…</option>${livres.map((k) => `<option value="${k}">${esc(NETWORK_LABEL[k])}</option>`).join('')}<option value="outra">Outra rede (digitar o nome)</option></select>
+<div id="nova-nome" hidden><label for="nova_name">Nome da rede</label><input id="nova_name" name="nova_name" type="text" maxlength="60" placeholder="Ex.: Kwai, Pinterest, Canal do WhatsApp"></div>
+<label for="nova_url">Link da página</label><input id="nova_url" name="nova_url" type="url" placeholder="https://…">
+<label for="nova_photo">Foto de perfil (opcional)</label><input id="nova_photo" name="nova_photo" type="file" accept="image/jpeg,image/png,image/webp">
+<p class="ajuda">A nova rede só é adicionada se você escolher a rede e preencher o link. Depois é só salvar.</p>
+</div>
+
+<h2>Botões de compartilhar nas notícias</h2>
+<div class="caixa" style="max-width:560px"><p class="ajuda" style="margin:0 0 6px">Marque as redes que aparecem embaixo de cada notícia e coluna. Instagram e “Copiar link” copiam o endereço da matéria, porque o Instagram não aceita compartilhar por link.</p>
+${SHARE_OPTIONS.map(([k, nome]) => `<label class="check"><input type="checkbox" name="share_${k}" value="1"${shareSel.includes(k) ? ' checked' : ''}> ${esc(nome)}</label>`).join('')}
+</div>
 <div class="acoes-form"><button class="btn pri">Salvar redes sociais</button></div></form>`;
 }
 

@@ -24,7 +24,7 @@ img{max-width:100%;display:block}
 .busca input{border:0;padding:8px 12px;font:15px var(--tx);width:190px;background:#fff}
 .busca button{border:0;background:var(--preto);color:#fff;padding:0 14px;cursor:pointer;font:700 14px var(--tx)}
 .busca button:hover{background:var(--verde)}
-.social-topo{display:flex;gap:8px;margin-left:18px}
+.social-topo{display:flex;flex-wrap:wrap;gap:8px;margin-left:18px;max-width:252px}
 .social-topo a{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--linha);display:flex;align-items:center;justify-content:center;color:var(--preto);overflow:hidden;flex-shrink:0;transition:border-color .15s,color .15s}
 .social-topo a:hover{border-color:var(--verde);color:var(--verde)}
 .social-topo svg{width:16px;height:16px}
@@ -103,12 +103,15 @@ img{max-width:100%;display:block}
 .materia .meta{border-top:1px solid var(--linha);border-bottom:1px solid var(--linha);padding:8px 0;margin-bottom:20px}
 .materia figure{margin:0 0 24px}
 .materia figcaption{font-size:13px;color:var(--suave);margin-top:6px}
-.corpo{font-size:19px;line-height:1.7}
-.corpo p,.corpo ul,.corpo ol,.corpo blockquote{margin-bottom:1.1em}
-.corpo ul,.corpo ol{padding-left:1.3em}
+/* texto da matéria seguindo a NBR 14724: entrelinha 1,5, recuo de 1,25 cm no parágrafo, texto justificado;
+   citação longa recuada, em corpo menor e entrelinha simples */
+.corpo{font-size:19px;line-height:1.5;text-align:justify;hyphens:auto;overflow-wrap:break-word}
+.corpo p{margin:0;text-indent:1.25cm}
+.corpo p[style*="text-align"],.corpo li p,.corpo blockquote p{text-indent:0}
+.corpo ul,.corpo ol{margin:.75em 0;padding-left:1.25cm;text-align:left}
 .corpo a{color:var(--verde);text-decoration:underline}
-.corpo blockquote{border-left:4px solid var(--verm);padding-left:16px;font-size:22px;font-style:italic}
-.corpo h2,.corpo h3{font:700 28px/1.1 var(--hd);margin:1.2em 0 .4em}
+.corpo blockquote{margin:1em 0 1em min(4cm,18vw);padding-left:14px;border-left:3px solid var(--verm);font-size:16px;line-height:1.2;text-align:justify}
+.corpo h2,.corpo h3{font:700 28px/1.2 var(--hd);margin:1.5em 0 .75em;text-align:left;text-indent:0}
 .corpo img{max-width:100%;height:auto;margin:1.2em auto}
 .corpo hr{border:0;border-top:2px solid var(--linha);margin:2em 0}
 .tags{margin-top:24px;font-size:14px;color:var(--suave)}

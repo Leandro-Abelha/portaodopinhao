@@ -74,7 +74,16 @@ export const setup = () => (ready ??= (async () => {
     network text PRIMARY KEY CHECK (network IN ('facebook','instagram','youtube')),
     url text DEFAULT '', name text DEFAULT '', photo text, updated_at timestamptz DEFAULT now()
   )`);
-  for (const n of ['facebook', 'instagram', 'youtube']) await run('INSERT INTO social_links (network) VALUES (?) ON CONFLICT DO NOTHING', [n]);
+  /* a lista de redes deixou de ser fixa: remove a trava e passa a ter ordem própria */
+  await run(`ALTER TABLE social_links DROP CONSTRAINT IF EXISTS social_links_network_check`);
+  await run(`ALTER TABLE social_links ADD COLUMN IF NOT EXISTS position int NOT NULL DEFAULT 0`);
+  await run(`CREATE TABLE IF NOT EXISTS settings (key text PRIMARY KEY, value text NOT NULL DEFAULT '')`);
+  /* as três redes iniciais entram uma única vez, para não reaparecerem depois de removidas */
+  if (!(await one(`SELECT 1 x FROM settings WHERE key = 'social_seeded'`))) {
+    for (const [i, n] of ['facebook', 'instagram', 'youtube'].entries())
+      await run('INSERT INTO social_links (network, position) VALUES (?,?) ON CONFLICT (network) DO UPDATE SET position = CASE WHEN social_links.position = 0 THEN EXCLUDED.position ELSE social_links.position END', [n, i + 1]);
+    await run(`INSERT INTO settings (key, value) VALUES ('social_seeded', '1') ON CONFLICT DO NOTHING`);
+  }
   await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS video_url text DEFAULT ''`);
 
   await run(`CREATE TABLE IF NOT EXISTS columnists (

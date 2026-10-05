@@ -56,13 +56,17 @@ function takeUpload(req, res, next) {
     next();
   });
 }
-const NETWORKS = ['facebook', 'instagram', 'youtube'];
-const uploadSocial = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMG, files: 3 }, fileFilter: (_r, f, cb) => cb(null, Boolean(EXT[f.mimetype])) });
+const uploadSocial = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMG, files: 30 }, fileFilter: (_r, f, cb) => cb(null, Boolean(EXT[f.mimetype])) });
+/* as redes são cadastradas pelo painel, então os campos de foto variam: aceita qualquer nome e confere cada imagem */
 function takeSocialUpload(req, res, next) {
-  uploadSocial.fields(NETWORKS.map((n) => ({ name: `${n}_photo`, maxCount: 1 })))(req, res, (err) => {
+  uploadSocial.any()(req, res, (err) => {
     req.uploadError = null;
+    req.socialFiles = {};
     if (err) { req.uploadError = err.code === 'LIMIT_FILE_SIZE' ? 'Imagem muito grande: o limite é 4 MB.' : 'Não foi possível enviar a imagem.'; return next(); }
-    for (const key of Object.keys(req.files || {})) if (!realImage(req.files[key][0])) { req.files[key] = null; req.uploadError = 'Imagem inválida: use JPG, PNG ou WEBP.'; }
+    for (const f of req.files || []) {
+      if (realImage(f)) req.socialFiles[f.fieldname] = f;
+      else req.uploadError = 'Imagem inválida: use JPG, PNG ou WEBP.';
+    }
     next();
   });
 }
@@ -106,20 +110,39 @@ function checkCsrf(req, res, next) {
 
 /* ---------------- texto seguro ---------------- */
 const UPLOADS_PREFIX = `${SB_URL}/storage/v1/object/public/uploads/`;
-const cleanBody = (html) => sanitizeHtml(html || '', {
+const sanitizeBody = (html) => sanitizeHtml(html || '', {
   allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'span', 'img', 'hr'],
   allowedAttributes: { a: ['href', 'rel', 'target'], img: ['src', 'alt'], '*': ['style'] },
   allowedStyles: {
     '*': {
       'text-align': [/^left$/, /^center$/, /^right$/, /^justify$/],
       'font-size': [/^(14|17|22|28)px$/],
-      'line-height': [/^(1\.3|1\.7|2\.2)$/],
+      'line-height': [/^(1|1\.5|2)$/], /* simples, 1,5 (ABNT) e duplo; valores antigos caem no padrão */
     },
   },
   allowedSchemes: ['http', 'https', 'mailto'],
   transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }, true), div: 'p' },
   exclusiveFilter: (frame) => frame.tag === 'img' && !(frame.attribs.src || '').startsWith(UPLOADS_PREFIX),
 }).trim();
+
+/* Limpa o excesso de espaço do texto: parágrafos vazios (<p><br></p>), quebras repetidas e texto solto.
+   Segue a NBR 14724: o espaço entre parágrafos vem do recuo e do entrelinhamento 1,5 (CSS), não de linhas em branco. */
+const VAZIO = '(?:\\s|&nbsp;|<br\\s*\\/?>)*';
+function normalizeBody(html) {
+  let h = String(html || '');
+  const primeiroBloco = h.search(/<(p|h2|h3|ul|ol|blockquote|hr)\b/i);
+  const solto = primeiroBloco === -1 ? h : h.slice(0, primeiroBloco);
+  if (solto.replace(/<[^>]*>|&nbsp;|\s/g, '')) h = `<p>${solto.trim()}</p>${primeiroBloco === -1 ? '' : h.slice(primeiroBloco)}`;
+  h = h.replace(/(?:&nbsp;\s*){2,}/g, ' ');
+  h = h.replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br />');
+  h = h.replace(/(<(?:p|h2|h3|li|blockquote)(?:\s[^>]*)?>)[\s\u00a0]+/gi, '$1').replace(/[\s\u00a0]+(<\/(?:p|h2|h3|li|blockquote)>)/gi, '$1');
+  h = h.replace(/(<(?:p|h2|h3|li|blockquote)(?:\s[^>]*)?>)\s*(?:<br\s*\/?>\s*)+/gi, '$1').replace(/(?:\s*<br\s*\/?>)+\s*(<\/(?:p|h2|h3|li|blockquote)>)/gi, '$1');
+  const vazio = new RegExp(`<(p|h2|h3|blockquote|li)(?:\\s[^>]*)?>${VAZIO}<\\/\\1>`, 'gi');
+  let antes;
+  do { antes = h; h = h.replace(vazio, ''); } while (h !== antes);
+  return h.trim();
+}
+const cleanBody = (html) => normalizeBody(sanitizeBody(html));
 const plain = (h) => h.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 const cleanLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -138,7 +161,12 @@ app.post('/evento', express.json({ limit: '2kb' }), (req, res) => {
 });
 
 const cats = () => all('SELECT * FROM categories ORDER BY position, id');
-const socialRows = () => all(`SELECT * FROM social_links ORDER BY CASE network WHEN 'facebook' THEN 1 WHEN 'instagram' THEN 2 ELSE 3 END`);
+const socialRows = () => all('SELECT * FROM social_links ORDER BY position, network');
+const getSetting = async (key) => (await one('SELECT value FROM settings WHERE key = ?', [key]))?.value;
+const setSetting = (key, value) => run('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, value]);
+/* redes dos botões de compartilhar: sem escolha salva, vale o padrão (Facebook, WhatsApp e Instagram) */
+const shareNets = async () => { const v = await getSetting('share_networks'); return v === undefined ? V.DEFAULT_SHARE : v.split(',').filter(Boolean); };
+const safeUrl = (u) => (/^https?:\/\/\S+$/i.test(u) ? u : '');
 const allColumnists = () => all('SELECT * FROM columnists ORDER BY position, id');
 const SELECT_A = `SELECT a.*, c.name cat_name, c.slug cat_slug, col.name columnist_name, col.slug columnist_slug, col.photo columnist_photo
   FROM articles a LEFT JOIN categories c ON c.id = a.category_id LEFT JOIN columnists col ON col.id = a.columnist_id`;
@@ -167,7 +195,8 @@ app.get('/noticia/:slug', async (req, res, next) => {
   if (!a) return next();
   const related = await all(`${SELECT_A} WHERE ${LIVE} AND a.id != ? AND a.category_id IS NOT DISTINCT FROM ? ${ORDER} LIMIT 3`, [a.id, a.category_id]);
   logView(req, 'article', req.path, a.id);
-  await site(res, { title: a.title, description: V.excerptOf(a), image: a.image ? V.imgUrl(a.image) : '', type: 'article', current: a.cat_slug, body: V.articleView(a, related) });
+  a.body = cleanBody(a.body);
+  await site(res, { title: a.title, description: V.excerptOf(a), image: a.image ? V.imgUrl(a.image) : '', type: 'article', current: a.cat_slug, body: V.articleView(a, related, await shareNets()) });
 });
 
 app.get('/categoria/:slug', async (req, res, next) => {
@@ -263,7 +292,8 @@ app.get('/admin/estatisticas', async (req, res) => {
     FROM pageviews WHERE ${D30} GROUP BY dia ORDER BY dia`);
   const porPagina = await all(`SELECT kind, COUNT(*)::int c FROM pageviews WHERE ${D7} GROUP BY kind ORDER BY c DESC`);
   const conversoes = await all(`SELECT type, meta, COUNT(*)::int c FROM events WHERE ${D7} GROUP BY type, meta ORDER BY c DESC`);
-  page(req, res, { title: 'Estatísticas', crumb: 'ESTATÍSTICAS', active: '/admin/estatisticas', body: V.statsView({ stats, topArtigos, porDia, porPagina, conversoes }), ...flash(req) });
+  const nomes = Object.fromEntries((await socialRows()).map((r) => [r.network, V.networkName(r)]));
+  page(req, res, { title: 'Estatísticas', crumb: 'ESTATÍSTICAS', active: '/admin/estatisticas', body: V.statsView({ stats, topArtigos, porDia, porPagina, conversoes, nomes }), ...flash(req) });
 });
 
 app.get('/admin/noticias', async (req, res) => {
@@ -288,7 +318,7 @@ app.get('/admin/noticias/nova', (req, res) => renderForm(req, res, { ...blank, a
 app.get('/admin/noticias/:id', async (req, res, next) => {
   const a = await one('SELECT * FROM articles WHERE id = ?', [Number(req.params.id) || 0]);
   if (!a) return next();
-  await renderForm(req, res, a);
+  await renderForm(req, res, { ...a, body: cleanBody(a.body) });
 });
 
 const nowIso = () => new Date().toISOString();
@@ -505,19 +535,55 @@ app.post('/admin/midia/apagar', checkCsrf, async (req, res) => {
   res.redirect('/admin/midia?ok=ok');
 });
 
-app.get('/admin/redes', async (req, res) => page(req, res, { title: 'Redes sociais', crumb: 'REDES SOCIAIS', active: '/admin/redes', body: V.socialView({ links: await socialRows(), csrf: req.csrf }), ...flash(req) }));
+const redesPage = async (req, res, extra = {}) => page(req, res, { title: 'Redes sociais', crumb: 'REDES SOCIAIS', active: '/admin/redes', body: V.socialView({ links: await socialRows(), shareSel: await shareNets(), csrf: req.csrf }), ...extra });
+app.get('/admin/redes', async (req, res) => redesPage(req, res, flash(req)));
 app.post('/admin/redes', takeSocialUpload, checkCsrf, async (req, res) => {
-  if (req.uploadError)
-    return page(req, res, { title: 'Redes sociais', crumb: 'REDES SOCIAIS', active: '/admin/redes', erro: V.esc(req.uploadError), body: V.socialView({ links: await socialRows(), csrf: req.csrf }) });
-  for (const n of NETWORKS) {
-    const old = await one('SELECT photo FROM social_links WHERE network = ?', [n]);
-    let photo = old?.photo || null;
-    const file = req.files?.[`${n}_photo`]?.[0];
-    if (file) { await removeImage(photo); photo = await storeImage(file); }
-    else if (req.body[`${n}_remove`]) { await removeImage(photo); photo = null; }
-    await run('UPDATE social_links SET url=?, name=?, photo=?, updated_at=now() WHERE network=?',
-      [cleanLine(req.body[`${n}_url`], 300), cleanLine(req.body[`${n}_name`], 60), photo, n]);
+  const erro = (m) => redesPage(req, res, { erro: V.esc(m) });
+  if (req.uploadError) return erro(req.uploadError);
+  const b = req.body || {};
+  const atuais = await socialRows();
+
+  /* confere tudo antes de gravar qualquer coisa */
+  const urls = {};
+  for (const s of atuais) {
+    if (b[`${s.network}_delete`]) continue;
+    const bruto = cleanLine(b[`${s.network}_url`], 300);
+    urls[s.network] = safeUrl(bruto);
+    if (bruto && !urls[s.network]) return erro(`O link de ${V.networkName(s)} precisa começar com http:// ou https://.`);
+    if (!V.NETWORK_LABEL[s.network] && !cleanLine(b[`${s.network}_name`], 60)) return erro('A rede personalizada precisa de um nome.');
   }
+  const escolha = String(b.nova_rede || '');
+  let nova = null;
+  if (escolha) {
+    const nome = cleanLine(b.nova_name, 60);
+    const url = safeUrl(cleanLine(b.nova_url, 300));
+    if (escolha !== 'outra' && (!V.FOLLOW_CATALOG.includes(escolha) || atuais.some((l) => l.network === escolha))) return erro('Essa rede não pode ser adicionada.');
+    if (escolha === 'outra' && !nome) return erro('Digite o nome da outra rede.');
+    if (!url) return erro('Preencha o link da nova rede, começando com http:// ou https://.');
+    let chave = escolha;
+    if (escolha === 'outra') {
+      const base = `outra-${slugify(nome)}`.slice(0, 40);
+      chave = base;
+      for (let n = 2; atuais.some((l) => l.network === chave); n++) chave = `${base}-${n}`;
+    }
+    nova = { chave, nome: escolha === 'outra' ? nome : '', url };
+  }
+
+  for (const s of atuais) {
+    const k = s.network;
+    if (b[`${k}_delete`]) { await removeImage(s.photo); await run('DELETE FROM social_links WHERE network = ?', [k]); continue; }
+    let photo = s.photo || null;
+    const file = req.socialFiles[`${k}_photo`];
+    if (file) { await removeImage(photo); photo = await storeImage(file); }
+    else if (b[`${k}_remove`]) { await removeImage(photo); photo = null; }
+    await run('UPDATE social_links SET url=?, name=?, photo=?, updated_at=now() WHERE network=?', [urls[k], cleanLine(b[`${k}_name`], 60), photo, k]);
+  }
+  if (nova) {
+    const file = req.socialFiles.nova_photo;
+    await run('INSERT INTO social_links (network, url, name, photo, position) VALUES (?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM social_links))',
+      [nova.chave, nova.url, nova.nome, file ? await storeImage(file) : null]);
+  }
+  await setSetting('share_networks', V.SHARE_OPTIONS.map(([k]) => k).filter((k) => b[`share_${k}`]).join(','));
   res.redirect('/admin/redes?ok=redes');
 });
 

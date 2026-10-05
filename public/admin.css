@@ -62,12 +62,14 @@ input.titulo{font:700 24px/1.2 var(--hd);padding:12px}
 .barra button.ativo{background:var(--preto);color:#fff}
 .barra button svg{width:16px;height:16px;display:block}
 .barra select{border:1px solid #d4dcdf;background:#fff;padding:5px 6px;font:600 12px var(--tx);cursor:pointer;border-radius:3px;color:#404a4f;max-width:130px}
-#texto{min-height:420px;border:1px solid #cbd3d6;background:#fff;padding:32px 40px;font-size:17px;line-height:1.7;box-shadow:0 1px 3px rgba(20,24,26,.08)}
+#texto{min-height:420px;border:1px solid #cbd3d6;background:#fff;padding:32px 40px;font-size:17px;line-height:1.5;text-align:justify;hyphens:auto;box-shadow:0 1px 3px rgba(20,24,26,.08)}
 #texto:focus{outline:3px solid var(--verde-vivo);outline-offset:0}
-#texto blockquote{border-left:4px solid var(--verm);padding-left:12px;margin:.6em 0;color:#4a565d}
-#texto ul,#texto ol{padding-left:1.4em}
-#texto h2{font:800 24px var(--hd);margin:.8em 0 .3em}
-#texto h3{font:700 19px var(--hd);margin:.8em 0 .3em}
+#texto p{margin:0;text-indent:1.25cm}
+#texto p[style*="text-align"],#texto li p,#texto blockquote p{text-indent:0}
+#texto blockquote{border-left:3px solid var(--verm);padding-left:12px;margin:1em 0 1em min(4cm,18vw);font-size:14px;line-height:1.2;color:#4a565d}
+#texto ul,#texto ol{padding-left:1.25cm;margin:.75em 0;text-align:left}
+#texto h2{font:800 24px var(--hd);margin:1.5em 0 .75em;text-align:left}
+#texto h3{font:700 19px var(--hd);margin:1.5em 0 .75em;text-align:left}
 #texto img{max-width:100%;height:auto;display:block;margin:1em auto}
 #texto hr{border:0;border-top:2px solid #cbd3d6;margin:1.6em 0}
 .ajuda{font-size:12px;color:var(--suave);margin-top:6px}

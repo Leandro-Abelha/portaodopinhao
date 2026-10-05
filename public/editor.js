@@ -8,6 +8,7 @@ document.addEventListener('submit', (e) => {
 
 const texto = $('#texto');
 if (texto) {
+  document.execCommand('defaultParagraphSeparator', false, 'p'); // Enter cria <p>, não <div>
   const form = $('#form-noticia');
   const botoes = document.querySelectorAll('.barra [data-cmd]');
   const ESTADOS = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'];
@@ -89,10 +90,14 @@ if (texto) {
   texto.addEventListener('keyup', atualizarEstado);
   texto.addEventListener('mouseup', atualizarEstado);
   document.addEventListener('selectionchange', () => { if (document.activeElement === texto) atualizarEstado(); });
-  // cola sem trazer formatação de outros sites
+  // cola sem trazer formatação de outros sites; linha em branco vira novo parágrafo (nunca um parágrafo vazio)
   texto.addEventListener('paste', (e) => {
     e.preventDefault();
-    document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+    const bruto = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\r/g, '');
+    const blocos = bruto.split(/\n\s*\n+/).map((b) => b.trim()).filter(Boolean);
+    if (blocos.length < 2) { document.execCommand('insertText', false, blocos[0] || ''); return; }
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    document.execCommand('insertHTML', false, blocos.map((b) => `<p>${esc(b).replace(/\n/g, '<br>')}</p>`).join(''));
   });
 
   // contador de palavras e caracteres
@@ -111,3 +116,7 @@ if (texto) {
   const quando = $('#quando'), agenda = $('#agenda');
   quando.addEventListener('change', () => { agenda.hidden = quando.value !== 'schedule'; });
 }
+
+/* painel de redes sociais: a opção "Outra rede" pede o nome da rede */
+const novaRede = $('#nova_rede');
+if (novaRede) novaRede.addEventListener('change', () => { $('#nova-nome').hidden = novaRede.value !== 'outra'; });
