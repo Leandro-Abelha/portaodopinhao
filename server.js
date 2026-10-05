@@ -125,21 +125,28 @@ const sanitizeBody = (html) => sanitizeHtml(html || '', {
   exclusiveFilter: (frame) => frame.tag === 'img' && !(frame.attribs.src || '').startsWith(UPLOADS_PREFIX),
 }).trim();
 
-/* Limpa o excesso de espaço do texto: parágrafos vazios (<p><br></p>), quebras repetidas e texto solto.
-   Segue a NBR 14724: o espaço entre parágrafos vem do recuo e do entrelinhamento 1,5 (CSS), não de linhas em branco. */
+/* Limpa o excesso de espaço do texto sem tirar a linha em branco que a pessoa colocou de propósito:
+   parágrafos vazios viram uma única linha em branco (<p><br /></p>), várias seguidas viram uma só,
+   as das pontas somem, e quebras repetidas e texto solto são arrumados.
+   O espaço do texto vem da entrelinha 1,5 da NBR 14724 (CSS), sem margens extras entre parágrafos. */
 const VAZIO = '(?:\\s|&nbsp;|<br\\s*\\/?>)*';
+const LINHA_EM_BRANCO = '<p><br /></p>';
 function normalizeBody(html) {
   let h = String(html || '');
   const primeiroBloco = h.search(/<(p|h2|h3|ul|ol|blockquote|hr)\b/i);
   const solto = primeiroBloco === -1 ? h : h.slice(0, primeiroBloco);
   if (solto.replace(/<[^>]*>|&nbsp;|\s/g, '')) h = `<p>${solto.trim()}</p>${primeiroBloco === -1 ? '' : h.slice(primeiroBloco)}`;
   h = h.replace(/(?:&nbsp;\s*){2,}/g, ' ');
-  h = h.replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br />');
+  h = h.replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br /><br />');
+  h = h.replace(new RegExp(`<p(?:\\s[^>]*)?>${VAZIO}<\\/p>`, 'gi'), LINHA_EM_BRANCO);
   h = h.replace(/(<(?:p|h2|h3|li|blockquote)(?:\s[^>]*)?>)[\s\u00a0]+/gi, '$1').replace(/[\s\u00a0]+(<\/(?:p|h2|h3|li|blockquote)>)/gi, '$1');
-  h = h.replace(/(<(?:p|h2|h3|li|blockquote)(?:\s[^>]*)?>)\s*(?:<br\s*\/?>\s*)+/gi, '$1').replace(/(?:\s*<br\s*\/?>)+\s*(<\/(?:p|h2|h3|li|blockquote)>)/gi, '$1');
-  const vazio = new RegExp(`<(p|h2|h3|blockquote|li)(?:\\s[^>]*)?>${VAZIO}<\\/\\1>`, 'gi');
+  h = h.replace(/(<(?:p|h2|h3|li|blockquote)(?:\s[^>]*)?>)(?:\s*<br\s*\/?>)+\s*(?!<\/)/gi, '$1').replace(/(?<!<p(?:\s[^>]*)?>)(?:\s*<br\s*\/?>)+\s*(<\/(?:p|h2|h3|li|blockquote)>)/gi, '$1');
+  const vazio = new RegExp(`<(h2|h3|blockquote|li)(?:\\s[^>]*)?>${VAZIO}<\\/\\1>`, 'gi');
   let antes;
   do { antes = h; h = h.replace(vazio, ''); } while (h !== antes);
+  const sequencia = new RegExp(`(?:${LINHA_EM_BRANCO.replace(/[/]/g, '\\/')}\\s*){2,}`, 'g');
+  h = h.replace(sequencia, LINHA_EM_BRANCO);
+  h = h.replace(new RegExp(`^(?:${LINHA_EM_BRANCO.replace(/[/]/g, '\\/')}\\s*)+`), '').replace(new RegExp(`(?:\\s*${LINHA_EM_BRANCO.replace(/[/]/g, '\\/')})+$`), '');
   return h.trim();
 }
 const cleanBody = (html) => normalizeBody(sanitizeBody(html));
