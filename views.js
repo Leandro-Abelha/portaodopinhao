@@ -99,6 +99,7 @@ export function socialBand(links) {
 export function siteLayout({ title, description = 'Seu portal de informação. Notícias de Curitiba e do Paraná.', body, cats, social = [], current = '', q = '', image = '', type = 'website' }) {
   const t = title ? `${esc(title)} | Portal do Pinhão` : 'Portal do Pinhão – Notícias de Curitiba e do Paraná';
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="google-adsense-account" content="ca-pub-6566450962645141">
 <title>${t}</title><meta name="description" content="${esc(description)}">
 <meta property="og:title" content="${t}"><meta property="og:description" content="${esc(description)}"><meta property="og:type" content="${type}">${image ? `<meta property="og:image" content="${esc(image)}">` : ''}
 <link rel="icon" href="/icone.svg" type="image/svg+xml">${FONTS}<link rel="stylesheet" href="/style.css"></head><body>
