@@ -120,3 +120,10 @@ if (texto) {
 /* painel de redes sociais: a opção "Outra rede" pede o nome da rede */
 const novaRede = $('#nova_rede');
 if (novaRede) novaRede.addEventListener('change', () => { $('#nova-nome').hidden = novaRede.value !== 'outra'; });
+
+/* cadastro de usuário: as categorias só valem para o redator; a descrição acompanha o perfil escolhido */
+const perfil = $('#perfil');
+if (perfil) perfil.addEventListener('change', () => {
+  $('#cats-box').hidden = perfil.value !== 'redator';
+  document.querySelectorAll('#perfil-desc [data-perfil]').forEach((s) => { s.hidden = s.dataset.perfil !== perfil.value; });
+});

@@ -192,14 +192,24 @@ ${book.synopsis ? `<div class="corpo">${book.synopsis.split(/\n+/).filter(Boolea
 }
 
 /* =============== PAINEL ADMIN =============== */
-const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias'], ['/admin/colunistas', 'Colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais'], ['/admin/conta', 'Minha conta']];
+/* perfis de acesso: o que cada um pode fazer no painel (o servidor confere em cada rota) */
+export const ROLES = {
+  admin: { nome: 'Administrador', desc: 'Acesso a tudo, inclusive usuários, categorias e redes sociais.', pode: ['estatisticas', 'manchete', 'colunistas', 'categorias', 'redes', 'usuarios'] },
+  editor: { nome: 'Editor', desc: 'Todas as notícias, manchete, colunistas, mídia e estatísticas.', pode: ['estatisticas', 'manchete', 'colunistas'] },
+  redator: { nome: 'Redator', desc: 'Escreve e publica só nas categorias marcadas; edita e apaga só as notícias que criou.', pode: [] },
+};
+export const can = (u, p) => Boolean(u && ROLES[u.role]?.pode.includes(p));
+/* administrador e editor mexem em qualquer notícia; o redator só nas que criou, dentro das categorias dele */
+export const canEditArticle = (u, a) => u.role !== 'redator' || (a.created_by === u.id && (a.category_id == null || u.cats.includes(a.category_id)));
+
+const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas', 'estatisticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias', 'categorias'], ['/admin/colunistas', 'Colunistas', 'colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais', 'redes'], ['/admin/usuarios', 'Usuários', 'usuarios'], ['/admin/conta', 'Minha conta']];
 
 export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>${esc(title)} | Painel do Pinhão</title>${FONTS}<link rel="stylesheet" href="/admin.css"></head><body>
 <div class="shell"><aside class="side"><a class="logo" href="/admin" aria-label="Painel"><img src="/logo-escuro.svg" alt="Portal do Pinhão"></a>
-<nav style="display:flex;flex-direction:column" aria-label="Painel">${NAV.map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
-<div class="conta">Conta editorial<b>${esc(user.name)}</b>${esc(user.email)}<form method="post" action="/admin/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="sair">Sair</button></form></div></aside>
+<nav style="display:flex;flex-direction:column" aria-label="Painel">${NAV.filter(([, , p]) => !p || can(user, p)).map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
+<div class="conta">${esc(ROLES[user.role]?.nome || 'Conta editorial')}<b>${esc(user.name)}</b>${esc(user.email)}<form method="post" action="/admin/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="sair">Sair</button></form></div></aside>
 <main><p class="crumb">${esc(crumb)}</p>${msg ? `<p class="msg" role="status">${esc(msg)}</p>` : ''}${erro ? `<p class="msg erro" role="alert">${erro}</p>` : ''}${body}</main></div>
 <script src="/editor.js"></script></body></html>`;
 }
@@ -216,10 +226,10 @@ ${erro ? `<p class="msg erro" role="alert" style="margin:10px 0 0">${esc(erro)}<
 const statusOf = (a) => (a.status === 'published' ? (toDate(a.published_at) > new Date() ? ['scheduled', 'Agendada'] : ['published', 'Publicada']) : ['draft', 'Rascunho']);
 export const statusBadge = (a) => { const [c, l] = statusOf(a); return `<span class="st ${c}">${l}</span>`; };
 
-export function dashboardView({ counts, recent, csrf }) {
+export function dashboardView({ counts, recent, csrf, user }) {
   return `<div class="topo"><h1>Visão geral</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="kpis"><div><b>${counts.published}</b><span>Publicadas</span></div><div><b>${counts.draft}</b><span>Rascunhos</span></div><div><b>${counts.scheduled}</b><span>Agendadas</span></div><div><b>${counts.today}</b><span>Publicadas hoje</span></div></div>
-<h2>Últimas alterações</h2>${articlesTable(recent, csrf)}`;
+<h2>Últimas alterações</h2>${articlesTable(recent, csrf, user)}`;
 }
 
 const PAGE_KIND_LABEL = { home: 'Início', article: 'Notícias', category: 'Categorias', search: 'Busca', columnist: 'Colunistas' };
@@ -254,21 +264,28 @@ ${porPagina.length ? `<table><thead><tr><th>Página</th><th>Views</th></tr></the
 </div>`;
 }
 
-export function articlesTable(items, csrf) {
+export function articlesTable(items, csrf, user) {
   if (!items.length) return `<p class="vazio">Nenhuma notícia por aqui. <a href="/admin/noticias/nova"><b>Escreva a primeira notícia</b></a>.</p>`;
-  return `<table><thead><tr><th>Título</th><th>Categoria</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>${items.map((a) => `<tr>
-<td><a href="/admin/noticias/${a.id}"><b>${esc(a.title)}</b></a>${a.featured ? ' <span class="st published">Manchete</span>' : ''}</td><td>${esc(a.cat_name || '—')}</td><td>${statusBadge(a)}</td>
-<td>${fmtShort(a.published_at || a.updated_at)}</td><td class="acoes"><a class="btn peq" href="/admin/noticias/${a.id}">Editar</a>
-<form method="post" action="/admin/noticias/${a.id}/apagar" data-confirm="Apagar &quot;${esc(a.title)}&quot;? Não dá para desfazer."><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form></td></tr>`).join('')}</tbody></table>`;
+  const noAr = (a) => statusOf(a)[0] === 'published';
+  const linha = (a) => {
+    const pode = canEditArticle(user, a);
+    const titulo = pode ? `<a href="/admin/noticias/${a.id}"><b>${esc(a.title)}</b></a>` : `<b>${esc(a.title)}</b>`;
+    const acoes = pode ? `<a class="btn peq" href="/admin/noticias/${a.id}">Editar</a>
+<form method="post" action="/admin/noticias/${a.id}/apagar" data-confirm="Apagar &quot;${esc(a.title)}&quot;? Não dá para desfazer."><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form>`
+      : `${noAr(a) ? `<a class="btn peq" href="/noticia/${esc(a.slug)}" target="_blank" rel="noopener">Ver no site</a> ` : ''}<span class="ajuda" title="Você só edita as notícias que criou">Só leitura</span>`;
+    return `<tr><td>${titulo}${a.featured ? ' <span class="st published">Manchete</span>' : ''}${a.creator_name ? `<br><span class="ajuda">por ${esc(a.creator_name)}</span>` : ''}</td><td>${esc(a.cat_name || '—')}</td><td>${statusBadge(a)}</td>
+<td>${fmtShort(a.published_at || a.updated_at)}</td><td class="acoes">${acoes}</td></tr>`;
+  };
+  return `<table><thead><tr><th>Título</th><th>Categoria</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>${items.map(linha).join('')}</tbody></table>`;
 }
 
-export function articlesListView({ items, filter, csrf }) {
+export function articlesListView({ items, filter, csrf, user }) {
   const f = [['todas', 'Todas'], ['published', 'Publicadas'], ['scheduled', 'Agendadas'], ['draft', 'Rascunhos']];
   return `<div class="topo"><h1>Todas as notícias</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
-<div class="filtros">${f.map(([k, l]) => `<a href="/admin/noticias?status=${k}"${filter === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</div>${articlesTable(items, csrf)}`;
+<div class="filtros">${f.map(([k, l]) => `<a href="/admin/noticias?status=${k}"${filter === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</div>${articlesTable(items, csrf, user)}`;
 }
 
-export function articleForm({ a, cats, columnists, csrf, erros = [] }) {
+export function articleForm({ a, cats, columnists, csrf, user, erros = [] }) {
   const isNew = !a.id;
   const agendada = a.status === 'published' && a.published_at && toDate(a.published_at) > new Date();
   return `<form method="post" enctype="multipart/form-data" action="${isNew ? '/admin/noticias' : `/admin/noticias/${a.id}`}" id="form-noticia" novalidate>
@@ -296,10 +313,10 @@ export function articleForm({ a, cats, columnists, csrf, erros = [] }) {
 </section>
 <aside class="lateral">
 <div><h3>Publicação</h3><label for="cat">Categoria</label><select id="cat" name="category_id"><option value="">Escolha…</option>${cats.map((c) => `<option value="${c.id}"${String(a.category_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
-<label for="colunista">Coluna (opcional)</label><select id="colunista" name="columnist_id"><option value="">Notícia comum (sem colunista)</option>${columnists.map((c) => `<option value="${c.id}"${String(a.columnist_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}${c.active ? '' : ' (inativo)'}</option>`).join('')}</select>
+${can(user, 'colunistas') ? `<label for="colunista">Coluna (opcional)</label><select id="colunista" name="columnist_id"><option value="">Notícia comum (sem colunista)</option>${columnists.map((c) => `<option value="${c.id}"${String(a.columnist_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}${c.active ? '' : ' (inativo)'}</option>`).join('')}</select>` : ''}
 <label for="quando">Data</label><select id="quando" name="quando"><option value="now">Publicar agora</option><option value="schedule"${agendada ? ' selected' : ''}>Agendar…</option></select>
 <div id="agenda" ${agendada ? '' : 'hidden'}><label for="quando_em">Publicar em (horário de Brasília)</label><input id="quando_em" name="quando_em" type="datetime-local" value="${agendada ? toLocalInput(a.published_at) : ''}"></div>
-<label class="check"><input type="checkbox" name="featured" value="1"${a.featured ? ' checked' : ''}> Manchete da página inicial</label></div>
+${can(user, 'manchete') ? `<label class="check"><input type="checkbox" name="featured" value="1"${a.featured ? ' checked' : ''}> Manchete da página inicial</label>` : ''}</div>
 <div><h3>Imagem de capa</h3>${a.image ? `<div class="prev"><img src="${esc(imgUrl(a.image))}" alt="Imagem atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover imagem</label></div>` : ''}
 <label for="img">${a.image ? 'Trocar imagem' : 'Enviar imagem'}</label><input id="img" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 5 MB. Ideal: proporção 16:9.</p>
 <label for="cred">Crédito da foto</label><input id="cred" name="image_credit" type="text" value="${esc(a.image_credit)}" placeholder="Foto: nome"></div>
@@ -431,4 +448,42 @@ export function accountView({ user, csrf }) {
 <label for="atual">Senha atual</label><input id="atual" name="atual" type="password" autocomplete="current-password" required>
 <label for="nova">Nova senha (deixe em branco para manter)</label><input id="nova" name="nova" type="password" autocomplete="new-password" minlength="10"><p class="ajuda">Mínimo de 10 caracteres.</p>
 <div class="acoes-form"><button class="btn pri">Salvar alterações</button></div></form>`;
+}
+
+/* =============== usuários =============== */
+export const semAcessoView = (texto = 'Seu perfil não tem acesso a esta área. Fale com o administrador do portal.') =>
+  `<div class="topo"><h1>Sem acesso</h1></div><p class="vazio">${esc(texto)} <a href="/admin"><b>Voltar à visão geral</b></a></p>`;
+
+export function usersListView({ items, csrf, me }) {
+  const acao = (u, url, rotulo, confirma, perigo = false) => `<form method="post" action="/admin/usuarios/${u.id}/${url}" data-confirm="${esc(confirma)}"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq${perigo ? ' perigo' : ''}"${u.id === me ? ' disabled title="Você não pode fazer isso com a sua própria conta"' : ''}>${rotulo}</button></form>`;
+  const acesso = (u) => u.role !== 'redator' ? 'Tudo do perfil' : u.cat_names ? esc(u.cat_names) : '<span class="st draft">Nenhuma categoria</span>';
+  return `<div class="topo"><h1>Usuários</h1><a class="btn pri" href="/admin/usuarios/novo">Novo usuário</a></div>
+<table><thead><tr><th>Nome</th><th>Perfil</th><th>Acesso</th><th>Notícias</th><th>Situação</th><th></th></tr></thead><tbody>${items.map((u) => `<tr>
+<td><a href="/admin/usuarios/${u.id}"><b>${esc(u.name)}</b></a>${u.id === me ? ' <span class="ajuda">(você)</span>' : ''}<br><span class="ajuda">${esc(u.email)}</span></td>
+<td>${esc(ROLES[u.role]?.nome || u.role)}</td><td>${acesso(u)}</td><td>${u.total}</td>
+<td>${u.active ? '<span class="st published">Ativo</span>' : '<span class="st draft">Desativado</span>'}</td>
+<td class="acoes"><a class="btn peq" href="/admin/usuarios/${u.id}">Editar</a>
+${u.active ? acao(u, 'desativar', 'Desativar', `Desativar ${u.name}? A pessoa sai do painel na hora e não consegue entrar até ser reativada.`) : acao(u, 'ativar', 'Reativar', `Reativar ${u.name}?`)}
+${acao(u, 'apagar', 'Excluir', `Excluir ${u.name}? As notícias continuam no ar. Não dá para desfazer.`, true)}</td></tr>`).join('')}</tbody></table>
+<p class="ajuda" style="margin-top:10px">Desativar bloqueia o acesso e mantém o histórico. Excluir remove a conta; as notícias da pessoa continuam publicadas.</p>`;
+}
+
+export function userForm({ u, cats, csrf, me }) {
+  const isNew = !u.id;
+  const proprio = u.id === me;
+  const marcadas = new Set((u.cats || []).map(Number));
+  return `<form class="caixa" style="max-width:620px" method="post" action="${isNew ? '/admin/usuarios' : `/admin/usuarios/${u.id}`}" novalidate>
+<input type="hidden" name="_csrf" value="${esc(csrf)}">
+<div class="topo" style="margin-top:-4px"><h1>${isNew ? 'Novo usuário' : 'Editar usuário'}</h1></div>
+<label for="u-nome" style="margin-top:0">Nome</label><input id="u-nome" name="name" type="text" required maxlength="60" value="${esc(u.name)}">
+<label for="u-email">E-mail (usado para entrar)</label><input id="u-email" name="email" type="email" required maxlength="120" autocomplete="off" value="${esc(u.email)}">
+<label for="perfil">Perfil</label>${proprio ? `<input type="hidden" name="role" value="${esc(u.role)}"><p><b>${esc(ROLES[u.role]?.nome)}</b> <span class="ajuda">— você não pode mudar o seu próprio perfil.</span></p>`
+  : `<select id="perfil" name="role">${Object.entries(ROLES).map(([k, r]) => `<option value="${k}"${u.role === k ? ' selected' : ''}>${r.nome}</option>`).join('')}</select>`}
+<p class="ajuda" id="perfil-desc">${Object.entries(ROLES).map(([k, r]) => `<span data-perfil="${k}"${u.role === k ? '' : ' hidden'}>${esc(r.desc)}</span>`).join('')}</p>
+<fieldset id="cats-box" class="cats-box"${u.role === 'redator' ? '' : ' hidden'}><legend>Categorias que o redator pode usar</legend>
+${cats.length ? `<div class="cats-grade">${cats.map((c) => `<label class="check"><input type="checkbox" name="cats" value="${c.id}"${marcadas.has(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>`).join('')}</div>` : '<p class="ajuda">Nenhuma categoria cadastrada ainda.</p>'}
+<p class="ajuda">Sem nenhuma marcada, o redator entra no painel mas não consegue escrever.</p></fieldset>
+<label for="u-senha">${isNew ? 'Senha inicial' : 'Nova senha (deixe em branco para manter)'}</label><input id="u-senha" name="senha" type="password" autocomplete="new-password" minlength="10"${isNew ? ' required' : ''}>
+<p class="ajuda">Mínimo de 10 caracteres. ${isNew ? 'Passe a senha para a pessoa; ela pode trocar depois em “Minha conta”.' : 'Ao trocar, a pessoa é desconectada e precisa entrar com a senha nova.'}</p>
+<div class="acoes-form"><a class="btn" href="/admin/usuarios">Cancelar</a><button class="btn pri">${isNew ? 'Cadastrar usuário' : 'Salvar alterações'}</button></div></form>`;
 }

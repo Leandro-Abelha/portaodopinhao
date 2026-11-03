@@ -76,8 +76,8 @@ const parseCookies = (h = '') => Object.fromEntries(h.split(';').map((c) => c.tr
 async function loadSession(req) {
   const tok = parseCookies(req.headers.cookie).sid;
   if (!tok) return null;
-  const s = await one(`SELECT s.token, s.csrf, s.expires_at, u.id uid, u.email, u.name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`, [tok]);
-  if (!s || Number(s.expires_at) < Date.now()) { if (s) await run('DELETE FROM sessions WHERE token = ?', [tok]); return null; }
+  const s = await one(`SELECT s.token, s.csrf, s.expires_at, u.id uid, u.email, u.name, u.role, u.active FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`, [tok]);
+  if (!s || !s.active || Number(s.expires_at) < Date.now()) { if (s) await run('DELETE FROM sessions WHERE token = ?', [tok]); return null; }
   return s;
 }
 async function startSession(res, userId) {
@@ -96,7 +96,8 @@ const fail = (ip) => { const a = attempts.get(ip); const n = a && a.until > Date
 async function requireAuth(req, res, next) {
   const s = await loadSession(req);
   if (!s) return res.redirect('/admin/entrar');
-  req.user = { id: s.uid, email: s.email, name: s.name };
+  req.user = { id: s.uid, email: s.email, name: s.name, role: V.ROLES[s.role] ? s.role : 'redator', cats: [] };
+  if (req.user.role === 'redator') req.user.cats = (await all('SELECT category_id FROM user_categories WHERE user_id = ?', [s.uid])).map((r) => r.category_id);
   req.csrf = s.csrf;
   res.set('Cache-Control', 'no-store');
   next();
@@ -177,6 +178,8 @@ const safeUrl = (u) => (/^https?:\/\/\S+$/i.test(u) ? u : '');
 const allColumnists = () => all('SELECT * FROM columnists ORDER BY position, id');
 const SELECT_A = `SELECT a.*, c.name cat_name, c.slug cat_slug, col.name columnist_name, col.slug columnist_slug, col.photo columnist_photo
   FROM articles a LEFT JOIN categories c ON c.id = a.category_id LEFT JOIN columnists col ON col.id = a.columnist_id`;
+/* no painel também aparece quem criou a notícia */
+const SELECT_ADM = SELECT_A.replace('FROM articles a', ', usr.name creator_name FROM articles a LEFT JOIN users usr ON usr.id = a.created_by');
 const ORDER = 'ORDER BY a.published_at DESC, a.id DESC';
 const site = async (res, opts) => res.send(V.siteLayout({ cats: await cats(), social: opts.social || await socialRows(), ...opts }));
 
@@ -255,6 +258,7 @@ app.post('/admin/entrar', async (req, res) => {
   const ok = u ? checkPassword(String(req.body.senha || ''), u.password_hash) : (checkPassword('x', hashPassword('y')), false);
   if (!ok) { fail(ip); return res.status(401).send(V.loginView({ erro: 'E-mail ou senha incorretos.', email })); }
   attempts.delete(ip);
+  if (!u.active) return res.status(403).send(V.loginView({ erro: 'Este acesso está desativado. Fale com o administrador do portal.', email }));
   await startSession(res, u.id);
   res.redirect('/admin');
 });
@@ -266,19 +270,30 @@ app.post('/admin/sair', requireAuth, checkCsrf, async (req, res) => {
 
 app.use('/admin', requireAuth);
 const page = (req, res, o) => res.send(V.adminLayout({ user: req.user, csrf: req.csrf, ...o }));
-const flash = (req) => ({ msg: { ok: 'Feito.', pub: 'Notícia publicada com sucesso.', draft: 'Rascunho salvo.', del: 'Notícia apagada.', ag: 'Notícia agendada com sucesso.', cat: 'Categoria salva.', conta: 'Conta atualizada.', img: 'Imagem enviada.', redes: 'Redes sociais atualizadas.', col: 'Colunista salvo.' }[req.query.ok] || '' });
+const semAcesso = (req, res, texto) => res.status(403).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: 'Sem acesso', crumb: 'ACESSO', body: V.semAcessoView(texto) }));
+/* cada área do painel só abre para os perfis que podem usá-la */
+const allow = (p) => (req, res, next) => (V.can(req.user, p) ? next() : semAcesso(req, res));
+app.use('/admin/estatisticas', allow('estatisticas'));
+app.use('/admin/categorias', allow('categorias'));
+app.use('/admin/colunistas', allow('colunistas'));
+app.use('/admin/redes', allow('redes'));
+app.use('/admin/usuarios', allow('usuarios'));
+/* o redator só enxerga as notícias das categorias dele (ids vêm do banco, já são números) */
+const escopo = (u) => (u.role !== 'redator' ? 'true' : u.cats.length ? `a.category_id IN (${u.cats.map(Number).join(',')})` : 'false');
+const catsDo = async (u) => (u.role === 'redator' ? (await cats()).filter((c) => u.cats.includes(c.id)) : cats());
+const flash = (req) => ({ msg: { ok: 'Feito.', pub: 'Notícia publicada com sucesso.', draft: 'Rascunho salvo.', del: 'Notícia apagada.', ag: 'Notícia agendada com sucesso.', cat: 'Categoria salva.', conta: 'Conta atualizada.', img: 'Imagem enviada.', redes: 'Redes sociais atualizadas.', col: 'Colunista salvo.', usu: 'Usuário salvo.', usudel: 'Usuário excluído.' }[req.query.ok] || '' });
 
 /* =============== ADMIN: painel =============== */
 app.get('/admin', async (req, res) => {
-  const n = async (w) => Number((await one(`SELECT COUNT(*) c FROM articles a WHERE ${w}`)).c);
+  const n = async (w) => Number((await one(`SELECT COUNT(*) c FROM articles a WHERE ${escopo(req.user)} AND ${w}`)).c);
   const tz = `AT TIME ZONE 'America/Sao_Paulo'`;
   const counts = {
     published: await n(LIVE), draft: await n(`a.status = 'draft'`),
     scheduled: await n(`a.status = 'published' AND a.published_at > now()`),
     today: await n(`${LIVE} AND (a.published_at ${tz})::date = (now() ${tz})::date`),
   };
-  const recent = await all(`${SELECT_A} ORDER BY a.updated_at DESC LIMIT 8`);
-  page(req, res, { title: 'Visão geral', crumb: 'PAINEL', active: '/admin', body: V.dashboardView({ counts, recent, csrf: req.csrf }), ...flash(req) });
+  const recent = await all(`${SELECT_ADM} WHERE ${escopo(req.user)} ORDER BY a.updated_at DESC LIMIT 8`);
+  page(req, res, { title: 'Visão geral', crumb: 'PAINEL', active: '/admin', body: V.dashboardView({ counts, recent, csrf: req.csrf, user: req.user }), ...flash(req) });
 });
 
 app.get('/admin/estatisticas', async (req, res) => {
@@ -306,14 +321,16 @@ app.get('/admin/estatisticas', async (req, res) => {
 app.get('/admin/noticias', async (req, res) => {
   const filter = ['published', 'draft', 'scheduled'].includes(req.query.status) ? req.query.status : 'todas';
   const where = { todas: 'true', published: LIVE, draft: `a.status = 'draft'`, scheduled: `a.status = 'published' AND a.published_at > now()` }[filter];
-  const items = await all(`${SELECT_A} WHERE ${where} ORDER BY a.updated_at DESC LIMIT 200`);
-  page(req, res, { title: 'Todas as notícias', crumb: 'NOTÍCIAS / TODAS', active: '/admin/noticias', body: V.articlesListView({ items, filter, csrf: req.csrf }), ...flash(req) });
+  const items = await all(`${SELECT_ADM} WHERE ${escopo(req.user)} AND ${where} ORDER BY a.updated_at DESC LIMIT 200`);
+  page(req, res, { title: 'Todas as notícias', crumb: 'NOTÍCIAS / TODAS', active: '/admin/noticias', body: V.articlesListView({ items, filter, csrf: req.csrf, user: req.user }), ...flash(req) });
 });
 
 const blank = { title: '', summary: '', body: '', category_id: '', columnist_id: '', tags: '', author: '', image: '', image_credit: '', video_url: '', status: 'draft', featured: 0 };
 const renderForm = async (req, res, a, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: a.id ? 'Editar notícia' : 'Nova notícia', crumb: a.id ? 'NOTÍCIAS / EDITAR' : 'NOTÍCIAS / NOVA PUBLICAÇÃO', active: a.id ? '/admin/noticias' : '/admin/noticias/nova',
-    erro: erros.map(V.esc).join('<br>'), body: V.articleForm({ a, cats: await cats(), columnists: await allColumnists(), csrf: req.csrf }) }));
+    erro: erros.map(V.esc).join('<br>'), body: V.articleForm({ a, cats: await catsDo(req.user), columnists: await allColumnists(), csrf: req.csrf, user: req.user }) }));
+const SEM_CATEGORIA = 'Você ainda não tem nenhuma categoria liberada para escrever. Peça ao administrador do portal.';
+const SO_SUAS = 'Você só pode editar as notícias que criou, dentro das suas categorias.';
 
 app.post('/admin/editor/imagem', takeUpload, checkCsrf, async (req, res) => {
   if (req.uploadError || !req.file) return res.status(400).json({ erro: req.uploadError || 'Escolha uma imagem JPG, PNG ou WEBP.' });
@@ -321,10 +338,11 @@ app.post('/admin/editor/imagem', takeUpload, checkCsrf, async (req, res) => {
   res.json({ url: V.imgUrl(name) });
 });
 
-app.get('/admin/noticias/nova', (req, res) => renderForm(req, res, { ...blank, author: req.user.name }));
+app.get('/admin/noticias/nova', (req, res) => (req.user.role === 'redator' && !req.user.cats.length ? semAcesso(req, res, SEM_CATEGORIA) : renderForm(req, res, { ...blank, author: req.user.name })));
 app.get('/admin/noticias/:id', async (req, res, next) => {
   const a = await one('SELECT * FROM articles WHERE id = ?', [Number(req.params.id) || 0]);
   if (!a) return next();
+  if (!V.canEditArticle(req.user, a)) return semAcesso(req, res, SO_SUAS);
   await renderForm(req, res, { ...a, body: cleanBody(a.body) });
 });
 
@@ -332,17 +350,25 @@ const nowIso = () => new Date().toISOString();
 async function saveArticle(req, res, id) {
   const old = id ? await one('SELECT * FROM articles WHERE id = ?', [id]) : null;
   if (id && !old) return res.status(404).send('Notícia não encontrada.');
+  const u = req.user;
+  if (old && !V.canEditArticle(u, old)) return semAcesso(req, res, SO_SUAS);
+  if (!old && u.role === 'redator' && !u.cats.length) return semAcesso(req, res, SEM_CATEGORIA);
   const b = req.body || {};
   const publish = b.action === 'publish';
   const body = cleanBody(b.body);
-  const catId = (await one('SELECT id FROM categories WHERE id = ?', [Number(b.category_id) || 0]))?.id || null;
-  const columnistId = (await one('SELECT id FROM columnists WHERE id = ?', [Number(b.columnist_id) || 0]))?.id || null;
+  let catId = (await one('SELECT id FROM categories WHERE id = ?', [Number(b.category_id) || 0]))?.id || null;
+  const catProibida = u.role === 'redator' && catId && !u.cats.includes(catId);
+  if (catProibida) catId = null;
+  /* coluna e manchete ficam como estavam quando o perfil não pode mexer nelas */
+  const columnistId = V.can(u, 'colunistas') ? (await one('SELECT id FROM columnists WHERE id = ?', [Number(b.columnist_id) || 0]))?.id || null : old?.columnist_id || null;
+  const featured = V.can(u, 'manchete') ? (b.featured ? 1 : 0) : old?.featured ? 1 : 0;
   const videoUrl = cleanLine(b.video_url, 300);
   const a = { ...(old || blank), id: old?.id, title: cleanLine(b.title, 160), summary: cleanLine(b.summary, 220), body, category_id: catId, columnist_id: columnistId, tags: cleanLine(b.tags, 120), author: cleanLine(b.author, 80),
-    image: old?.image || '', image_credit: cleanLine(b.image_credit, 120), video_url: videoUrl, featured: b.featured ? 1 : 0, status: publish ? 'published' : 'draft' };
+    image: old?.image || '', image_credit: cleanLine(b.image_credit, 120), video_url: videoUrl, featured, status: publish ? 'published' : 'draft' };
 
   const erros = [];
   if (req.uploadError) erros.push(req.uploadError + ' O conteúdo preenchido permanece.');
+  if (catProibida) erros.push('Você não tem acesso a essa categoria. Escolha uma das suas.');
   if (!a.title) erros.push('Preencha o título.');
   if (publish && !catId) erros.push('Escolha uma categoria para publicar.');
   if (publish && !plain(body)) erros.push('Escreva o texto da notícia para publicar.');
@@ -366,14 +392,15 @@ async function saveArticle(req, res, id) {
 
   const vals = [a.title, a.slug, a.summary, a.body, a.category_id, a.columnist_id, a.image || null, a.image_credit, a.tags, a.author, a.status, a.featured, when, a.video_url];
   if (old) await run(`UPDATE articles SET title=?, slug=?, summary=?, body=?, category_id=?, columnist_id=?, image=?, image_credit=?, tags=?, author=?, status=?, featured=?, published_at=?, video_url=?, updated_at=now() WHERE id=?`, [...vals, id]);
-  else await run(`INSERT INTO articles (title, slug, summary, body, category_id, columnist_id, image, image_credit, tags, author, status, featured, published_at, video_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, vals);
+  else await run(`INSERT INTO articles (title, slug, summary, body, category_id, columnist_id, image, image_credit, tags, author, status, featured, published_at, video_url, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [...vals, u.id]);
   res.redirect(`/admin/noticias?ok=${!publish ? 'draft' : b.quando === 'schedule' ? 'ag' : 'pub'}`);
 }
 app.post('/admin/noticias', takeUpload, checkCsrf, (req, res) => saveArticle(req, res, 0));
 app.post('/admin/noticias/:id', takeUpload, checkCsrf, (req, res) => saveArticle(req, res, Number(req.params.id) || 0));
 app.post('/admin/noticias/:id/apagar', checkCsrf, async (req, res) => {
   const id = Number(req.params.id) || 0;
-  const a = await one('SELECT image FROM articles WHERE id = ?', [id]);
+  const a = await one('SELECT image, created_by, category_id FROM articles WHERE id = ?', [id]);
+  if (a && !V.canEditArticle(req.user, a)) return semAcesso(req, res, SO_SUAS);
   if (a) { await run('DELETE FROM articles WHERE id = ?', [id]); await removeImage(a.image); }
   res.redirect('/admin/noticias?ok=del');
 });
@@ -603,6 +630,92 @@ app.post('/admin/conta', checkCsrf, async (req, res) => {
   await run('UPDATE users SET name = ?, password_hash = ? WHERE id = ?', [cleanLine(req.body.name, 60) || u.name, nova ? hashPassword(nova) : u.password_hash, u.id]);
   if (nova) await run('DELETE FROM sessions WHERE user_id = ? AND token != ?', [u.id, parseCookies(req.headers.cookie).sid]);
   res.redirect('/admin/conta?ok=conta');
+});
+
+/* =============== ADMIN: usuários =============== */
+const usersWithInfo = () => all(`SELECT u.id, u.name, u.email, u.role, u.active,
+  (SELECT string_agg(c.name, ', ' ORDER BY c.position, c.id) FROM user_categories uc JOIN categories c ON c.id = uc.category_id WHERE uc.user_id = u.id) cat_names,
+  (SELECT COUNT(*) FROM articles WHERE created_by = u.id)::int total
+  FROM users u ORDER BY u.active DESC, u.name`);
+const adminsAtivos = async () => Number((await one(`SELECT COUNT(*) c FROM users WHERE role = 'admin' AND active`)).c);
+/* nunca deixa o portal sem um administrador ativo */
+const ultimoAdmin = async (u) => u.role === 'admin' && u.active && await adminsAtivos() <= 1;
+const usuariosPage = async (req, res, extra = {}) => page(req, res, { title: 'Usuários', crumb: 'USUÁRIOS', active: '/admin/usuarios', body: V.usersListView({ items: await usersWithInfo(), csrf: req.csrf, me: req.user.id }), ...extra });
+app.get('/admin/usuarios', (req, res) => usuariosPage(req, res, flash(req)));
+
+const renderUserForm = async (req, res, u, erros = [], code = 200) =>
+  res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: u.id ? 'Editar usuário' : 'Novo usuário', crumb: u.id ? 'USUÁRIOS / EDITAR' : 'USUÁRIOS / NOVO', active: '/admin/usuarios',
+    erro: erros.map(V.esc).join('<br>'), body: V.userForm({ u, cats: await cats(), csrf: req.csrf, me: req.user.id }) }));
+app.get('/admin/usuarios/novo', (req, res) => renderUserForm(req, res, { name: '', email: '', role: 'redator', cats: [] }));
+app.get('/admin/usuarios/:id', async (req, res, next) => {
+  const u = await one('SELECT id, name, email, role, active FROM users WHERE id = ?', [Number(req.params.id) || 0]);
+  if (!u) return next();
+  u.cats = (await all('SELECT category_id FROM user_categories WHERE user_id = ?', [u.id])).map((r) => r.category_id);
+  await renderUserForm(req, res, u);
+});
+
+async function saveUser(req, res, id) {
+  const old = id ? await one('SELECT * FROM users WHERE id = ?', [id]) : null;
+  if (id && !old) return res.status(404).send('Usuário não encontrado.');
+  const b = req.body || {};
+  const proprio = old && old.id === req.user.id;
+  const u = { id, name: cleanLine(b.name, 60), email: cleanLine(b.email, 120).toLowerCase(),
+    role: proprio ? old.role : V.ROLES[b.role] ? b.role : 'redator', cats: [].concat(b.cats || []).map(Number).filter(Boolean) };
+  const senha = String(b.senha || '');
+
+  const erros = [];
+  if (!u.name) erros.push('Preencha o nome.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email)) erros.push('Digite um e-mail válido.');
+  else if (await one('SELECT 1 x FROM users WHERE email = ? AND id != ?', [u.email, id || 0])) erros.push('Já existe um usuário com esse e-mail.');
+  if (!old && !senha) erros.push('Defina uma senha inicial.');
+  if (senha && senha.length < 10) erros.push('A senha precisa ter pelo menos 10 caracteres.');
+  if (old && u.role !== 'admin' && await ultimoAdmin(old)) erros.push('Este é o único administrador ativo. Cadastre outro administrador antes de mudar o perfil dele.');
+  if (erros.length) return renderUserForm(req, res, u, erros, 422);
+
+  let userId = id;
+  if (old) {
+    await run('UPDATE users SET name = ?, email = ?, role = ?, password_hash = ? WHERE id = ?', [u.name, u.email, u.role, senha ? hashPassword(senha) : old.password_hash, id]);
+    /* senha trocada pelo administrador: derruba as sessões abertas (menos a de quem está editando) */
+    if (senha) await run('DELETE FROM sessions WHERE user_id = ? AND token != ?', [id, parseCookies(req.headers.cookie).sid]);
+  } else {
+    userId = (await one('INSERT INTO users (name, email, role, password_hash) VALUES (?,?,?,?) RETURNING id', [u.name, u.email, u.role, hashPassword(senha)])).id;
+  }
+  await run('DELETE FROM user_categories WHERE user_id = ?', [userId]);
+  if (u.role === 'redator') for (const c of await cats()) if (u.cats.includes(c.id)) await run('INSERT INTO user_categories (user_id, category_id) VALUES (?,?)', [userId, c.id]);
+  res.redirect('/admin/usuarios?ok=usu');
+}
+app.post('/admin/usuarios', checkCsrf, (req, res) => saveUser(req, res, 0));
+app.post('/admin/usuarios/:id', checkCsrf, (req, res) => saveUser(req, res, Number(req.params.id) || 0));
+
+/* desativar, reativar e excluir: nunca a própria conta nem o último administrador */
+const alvoUsuario = async (req, res) => {
+  const u = await one('SELECT * FROM users WHERE id = ?', [Number(req.params.id) || 0]);
+  if (!u) { res.redirect('/admin/usuarios'); return null; }
+  if (u.id === req.user.id) { await usuariosPage(req, res, { erro: 'Você não pode desativar nem excluir a sua própria conta.' }); return null; }
+  return u;
+};
+app.post('/admin/usuarios/:id/desativar', checkCsrf, async (req, res) => {
+  const u = await alvoUsuario(req, res);
+  if (!u) return;
+  if (await ultimoAdmin(u)) return usuariosPage(req, res, { erro: 'Este é o único administrador ativo e não pode ser desativado.' });
+  await run('UPDATE users SET active = false WHERE id = ?', [u.id]);
+  await run('DELETE FROM sessions WHERE user_id = ?', [u.id]);
+  res.redirect('/admin/usuarios?ok=usu');
+});
+app.post('/admin/usuarios/:id/ativar', checkCsrf, async (req, res) => {
+  const u = await alvoUsuario(req, res);
+  if (!u) return;
+  await run('UPDATE users SET active = true WHERE id = ?', [u.id]);
+  res.redirect('/admin/usuarios?ok=usu');
+});
+app.post('/admin/usuarios/:id/apagar', checkCsrf, async (req, res) => {
+  const u = await alvoUsuario(req, res);
+  if (!u) return;
+  if (await ultimoAdmin(u)) return usuariosPage(req, res, { erro: 'Este é o único administrador ativo e não pode ser excluído.' });
+  await run('DELETE FROM sessions WHERE user_id = ?', [u.id]);
+  await run('UPDATE articles SET created_by = NULL WHERE created_by = ?', [u.id]);
+  await run('DELETE FROM users WHERE id = ?', [u.id]);
+  res.redirect('/admin/usuarios?ok=usudel');
 });
 
 /* =============== erros =============== */

@@ -113,3 +113,9 @@ input.titulo{font:700 24px/1.2 var(--hd);padding:12px}
 input[type=file]{display:block;width:100%;max-width:100%;font:13px var(--tx);color:var(--suave);overflow:hidden;text-overflow:ellipsis}
 input[type=file]::file-selector-button{margin-right:10px;border:1px solid #c5cdd0;background:#fff;color:#172027;padding:7px 12px;font:600 13px var(--tx);cursor:pointer;border-radius:3px}
 input[type=file]::file-selector-button:hover{border-color:#172027}
+
+/* usuários: categorias liberadas para o redator */
+.cats-box{border:1px solid var(--linha);background:#f8faf9;padding:4px 14px 12px;margin-top:14px;border-radius:3px}
+.cats-box legend{font-size:12px;font-weight:700;color:#4a565d;padding:0 6px}
+.cats-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 12px}
+.cats-grade .check{margin-top:8px;font-weight:500}

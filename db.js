@@ -65,10 +65,23 @@ export const setup = () => (ready ??= (async () => {
     for (const [i, n] of ['Curitiba', 'Paraná', 'Política', 'Brasil', 'Esportes'].entries())
       await run('INSERT INTO categories (name, slug, position) VALUES (?,?,?) ON CONFLICT DO NOTHING', [n, slugify(n), i]);
   }
+  /* perfis de acesso: quem já existia vira administrador; os novos nascem redatores até alguém escolher */
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'admin'`);
+  await run(`ALTER TABLE users ALTER COLUMN role SET DEFAULT 'redator'`);
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true`);
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()`);
   const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
   if (ADMIN_EMAIL && ADMIN_PASSWORD && !Number((await one('SELECT COUNT(*) c FROM users')).c))
-    await run('INSERT INTO users (email, name, password_hash) VALUES (?,?,?) ON CONFLICT DO NOTHING',
+    await run(`INSERT INTO users (email, name, password_hash, role) VALUES (?,?,?,'admin') ON CONFLICT DO NOTHING`,
       [ADMIN_EMAIL.toLowerCase(), 'Redação Portal do Pinhão', hashPassword(ADMIN_PASSWORD)]);
+  /* categorias liberadas para cada redator */
+  await run(`CREATE TABLE IF NOT EXISTS user_categories (
+    user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category_id integer NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, category_id)
+  )`);
+  /* quem criou a notícia (as antigas ficam sem criador) */
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS created_by integer REFERENCES users(id) ON DELETE SET NULL`);
 
   await run(`CREATE TABLE IF NOT EXISTS social_links (
     network text PRIMARY KEY CHECK (network IN ('facebook','instagram','youtube')),
