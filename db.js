@@ -82,6 +82,11 @@ export const setup = () => (ready ??= (async () => {
   )`);
   /* quem criou a notícia (as antigas ficam sem criador) */
   await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS created_by integer REFERENCES users(id) ON DELETE SET NULL`);
+  /* fila de aprovação: o texto do redator fica como rascunho, marcado 'pendente' ou 'devolvida' */
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_status text`);
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_note text DEFAULT ''`);
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_when timestamptz`);
+  await run(`ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_sent_at timestamptz`);
 
   await run(`CREATE TABLE IF NOT EXISTS social_links (
     network text PRIMARY KEY CHECK (network IN ('facebook','instagram','youtube')),

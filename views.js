@@ -194,21 +194,21 @@ ${book.synopsis ? `<div class="corpo">${book.synopsis.split(/\n+/).filter(Boolea
 /* =============== PAINEL ADMIN =============== */
 /* perfis de acesso: o que cada um pode fazer no painel (o servidor confere em cada rota) */
 export const ROLES = {
-  admin: { nome: 'Administrador', desc: 'Acesso a tudo, inclusive usuários, categorias e redes sociais.', pode: ['estatisticas', 'manchete', 'colunistas', 'categorias', 'redes', 'usuarios'] },
-  editor: { nome: 'Editor', desc: 'Todas as notícias, manchete, colunistas, mídia e estatísticas.', pode: ['estatisticas', 'manchete', 'colunistas'] },
-  redator: { nome: 'Redator', desc: 'Escreve e publica só nas categorias marcadas; edita e apaga só as notícias que criou.', pode: [] },
+  admin: { nome: 'Administrador', desc: 'Acesso a tudo, inclusive usuários, categorias e redes sociais.', pode: ['aprovar', 'estatisticas', 'manchete', 'colunistas', 'categorias', 'redes', 'usuarios'] },
+  editor: { nome: 'Editor', desc: 'Todas as notícias, aprovação dos redatores, manchete, colunistas, mídia e estatísticas.', pode: ['aprovar', 'estatisticas', 'manchete', 'colunistas'] },
+  redator: { nome: 'Redator', desc: 'Escreve só nas categorias marcadas e envia para aprovação; mexe só nas notícias dele que ainda não foram aprovadas.', pode: [] },
 };
 export const can = (u, p) => Boolean(u && ROLES[u.role]?.pode.includes(p));
-/* administrador e editor mexem em qualquer notícia; o redator só nas que criou, dentro das categorias dele */
-export const canEditArticle = (u, a) => u.role !== 'redator' || (a.created_by === u.id && (a.category_id == null || u.cats.includes(a.category_id)));
+/* administrador e editor mexem em qualquer notícia; o redator só nas que criou, dentro das categorias dele, antes da aprovação */
+export const canEditArticle = (u, a) => u.role !== 'redator' || (a.created_by === u.id && a.status !== 'published' && (a.category_id == null || u.cats.includes(a.category_id)));
 
-const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas', 'estatisticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/categorias', 'Categorias', 'categorias'], ['/admin/colunistas', 'Colunistas', 'colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais', 'redes'], ['/admin/usuarios', 'Usuários', 'usuarios'], ['/admin/conta', 'Minha conta']];
+const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas', 'estatisticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/aprovacoes', 'Aprovações', 'aprovar'], ['/admin/categorias', 'Categorias', 'categorias'], ['/admin/colunistas', 'Colunistas', 'colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais', 'redes'], ['/admin/usuarios', 'Usuários', 'usuarios'], ['/admin/conta', 'Minha conta']];
 
 export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>${esc(title)} | Painel do Pinhão</title>${FONTS}<link rel="stylesheet" href="/admin.css"></head><body>
 <div class="shell"><aside class="side"><a class="logo" href="/admin" aria-label="Painel"><img src="/logo-escuro.svg" alt="Portal do Pinhão"></a>
-<nav style="display:flex;flex-direction:column" aria-label="Painel">${NAV.filter(([, , p]) => !p || can(user, p)).map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
+<nav style="display:flex;flex-direction:column" aria-label="Painel">${NAV.filter(([, , p]) => !p || can(user, p)).map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}${h === '/admin/aprovacoes' && user.pendentes ? ` <span class="contador" aria-label="${user.pendentes} aguardando">${user.pendentes}</span>` : ''}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
 <div class="conta">${esc(ROLES[user.role]?.nome || 'Conta editorial')}<b>${esc(user.name)}</b>${esc(user.email)}<form method="post" action="/admin/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="sair">Sair</button></form></div></aside>
 <main><p class="crumb">${esc(crumb)}</p>${msg ? `<p class="msg" role="status">${esc(msg)}</p>` : ''}${erro ? `<p class="msg erro" role="alert">${erro}</p>` : ''}${body}</main></div>
 <script src="/editor.js"></script></body></html>`;
@@ -223,12 +223,13 @@ ${erro ? `<p class="msg erro" role="alert" style="margin:10px 0 0">${esc(erro)}<
 <button class="btn pri" type="submit">Entrar</button><a href="/">← Voltar ao site</a></form></div></body></html>`;
 }
 
-const statusOf = (a) => (a.status === 'published' ? (toDate(a.published_at) > new Date() ? ['scheduled', 'Agendada'] : ['published', 'Publicada']) : ['draft', 'Rascunho']);
+const statusOf = (a) => (a.status !== 'published' && a.review_status === 'pendente' ? ['pending', 'Aguardando aprovação'] : a.status !== 'published' && a.review_status === 'devolvida' ? ['returned', 'Devolvida'] : a.status === 'published' ? (toDate(a.published_at) > new Date() ? ['scheduled', 'Agendada'] : ['published', 'Publicada']) : ['draft', 'Rascunho']);
 export const statusBadge = (a) => { const [c, l] = statusOf(a); return `<span class="st ${c}">${l}</span>`; };
 
 export function dashboardView({ counts, recent, csrf, user }) {
   return `<div class="topo"><h1>Visão geral</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="kpis"><div><b>${counts.published}</b><span>Publicadas</span></div><div><b>${counts.draft}</b><span>Rascunhos</span></div><div><b>${counts.scheduled}</b><span>Agendadas</span></div><div><b>${counts.today}</b><span>Publicadas hoje</span></div></div>
+${user.pendentes ? `<p class="msg"><a href="/admin/aprovacoes"><b>${user.pendentes === 1 ? '1 notícia aguarda' : `${user.pendentes} notícias aguardam`} aprovação.</b> Revisar agora</a></p>` : ''}
 <h2>Últimas alterações</h2>${articlesTable(recent, csrf, user)}`;
 }
 
@@ -272,26 +273,34 @@ export function articlesTable(items, csrf, user) {
     const titulo = pode ? `<a href="/admin/noticias/${a.id}"><b>${esc(a.title)}</b></a>` : `<b>${esc(a.title)}</b>`;
     const acoes = pode ? `<a class="btn peq" href="/admin/noticias/${a.id}">Editar</a>
 <form method="post" action="/admin/noticias/${a.id}/apagar" data-confirm="Apagar &quot;${esc(a.title)}&quot;? Não dá para desfazer."><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form>`
-      : `${noAr(a) ? `<a class="btn peq" href="/noticia/${esc(a.slug)}" target="_blank" rel="noopener">Ver no site</a> ` : ''}<span class="ajuda" title="Você só edita as notícias que criou">Só leitura</span>`;
-    return `<tr><td>${titulo}${a.featured ? ' <span class="st published">Manchete</span>' : ''}${a.creator_name ? `<br><span class="ajuda">por ${esc(a.creator_name)}</span>` : ''}</td><td>${esc(a.cat_name || '—')}</td><td>${statusBadge(a)}</td>
+      : `${noAr(a) ? `<a class="btn peq" href="/noticia/${esc(a.slug)}" target="_blank" rel="noopener">Ver no site</a> ` : ''}<span class="ajuda" title="${a.created_by === user.id ? 'Depois de aprovada, só editor ou administrador altera' : 'Você só edita as notícias que criou'}">Só leitura</span>`;
+    return `<tr><td>${titulo}${a.featured ? ' <span class="st published">Manchete</span>' : ''}${a.creator_name ? `<br><span class="ajuda">por ${esc(a.creator_name)}</span>` : ''}${a.review_status === 'devolvida' && a.review_note && a.status !== 'published' ? `<br><span class="nota-devolvida">Ajustes pedidos: ${esc(a.review_note)}</span>` : ''}</td><td>${esc(a.cat_name || '—')}</td><td>${statusBadge(a)}</td>
 <td>${fmtShort(a.published_at || a.updated_at)}</td><td class="acoes">${acoes}</td></tr>`;
   };
   return `<table><thead><tr><th>Título</th><th>Categoria</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>${items.map(linha).join('')}</tbody></table>`;
 }
 
 export function articlesListView({ items, filter, csrf, user }) {
-  const f = [['todas', 'Todas'], ['published', 'Publicadas'], ['scheduled', 'Agendadas'], ['draft', 'Rascunhos']];
+  const f = [['todas', 'Todas'], ['published', 'Publicadas'], ['scheduled', 'Agendadas'], ['pendente', 'Aguardando aprovação'], ['draft', 'Rascunhos']];
   return `<div class="topo"><h1>Todas as notícias</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="filtros">${f.map(([k, l]) => `<a href="/admin/noticias?status=${k}"${filter === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</div>${articlesTable(items, csrf, user)}`;
 }
 
 export function articleForm({ a, cats, columnists, csrf, user, erros = [] }) {
   const isNew = !a.id;
-  const agendada = a.status === 'published' && a.published_at && toDate(a.published_at) > new Date();
+  const pedida = a.status !== 'published' && a.review_when; // horário pedido pelo redator, ainda na fila
+  const agendada = pedida ? toDate(a.review_when) > new Date() : a.status === 'published' && a.published_at && toDate(a.published_at) > new Date();
+  const aprova = can(user, 'aprovar');
+  const pendente = a.status !== 'published' && a.review_status === 'pendente';
+  const aviso = pendente
+    ? (aprova ? `<p class="msg aviso"><b>Aguardando aprovação.</b> Enviada${a.creator_name ? ` por ${esc(a.creator_name)}` : ''}${a.review_sent_at ? ` em ${fmtShort(a.review_sent_at)}` : ''}. Revise e clique em “Aprovar e publicar”, ou devolva pela aba <a href="/admin/aprovacoes"><b>Aprovações</b></a>.</p>`
+      : `<p class="msg aviso"><b>Aguardando aprovação.</b> Você ainda pode ajustar e reenviar. Se salvar como rascunho, ela sai da fila.</p>`)
+    : a.status !== 'published' && a.review_status === 'devolvida' ? `<p class="msg erro"><b>Devolvida para ajustes.</b> ${a.review_note ? esc(a.review_note) : 'Sem observação.'}</p>` : '';
+  const rotuloPublicar = !aprova ? 'Enviar para aprovação' : pendente ? 'Aprovar e publicar' : 'Publicar notícia';
   return `<form method="post" enctype="multipart/form-data" action="${isNew ? '/admin/noticias' : `/admin/noticias/${a.id}`}" id="form-noticia" novalidate>
 <input type="hidden" name="_csrf" value="${esc(csrf)}">
 <div class="topo"><div><h1>${isNew ? 'Criar notícia' : 'Editar notícia'}</h1></div><span class="crumb">${isNew ? 'Rascunho não salvo' : statusBadge(a)}</span></div>
-<div class="editor-layout"><section>
+${aviso}<div class="editor-layout"><section>
 <label for="titulo">Título</label><input class="titulo" id="titulo" name="title" type="text" required value="${esc(a.title)}" placeholder="Escreva o título da notícia">
 <label for="resumo">Resumo</label><input id="resumo" name="summary" type="text" maxlength="220" value="${esc(a.summary)}" placeholder="Uma frase curta para apresentar a notícia nos cards.">
 <label for="texto">Texto da notícia</label>
@@ -308,14 +317,14 @@ export function articleForm({ a, cats, columnists, csrf, user, erros = [] }) {
 <div id="texto" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Texto da notícia">${a.body || ''}</div>
 <textarea name="body" id="body" hidden></textarea>
 <p class="ajuda" id="contador-texto">0 palavras · 0 caracteres</p>
-<p class="ajuda">Campos obrigatórios para publicar: título, categoria e texto. Para salvar um rascunho basta o título.</p>
-<div class="acoes-form"><button class="btn" name="action" value="draft">Salvar rascunho</button><button class="btn pri" name="action" value="publish">Publicar notícia</button></div>
+<p class="ajuda">Campos obrigatórios para ${aprova ? 'publicar' : 'enviar'}: título, categoria e texto. Para salvar um rascunho basta o título.${aprova ? '' : ' Um editor ou administrador revisa a notícia antes de ela entrar no site.'}</p>
+<div class="acoes-form"><button class="btn" name="action" value="draft">Salvar rascunho</button><button class="btn pri" name="action" value="publish">${rotuloPublicar}</button></div>
 </section>
 <aside class="lateral">
 <div><h3>Publicação</h3><label for="cat">Categoria</label><select id="cat" name="category_id"><option value="">Escolha…</option>${cats.map((c) => `<option value="${c.id}"${String(a.category_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
 ${can(user, 'colunistas') ? `<label for="colunista">Coluna (opcional)</label><select id="colunista" name="columnist_id"><option value="">Notícia comum (sem colunista)</option>${columnists.map((c) => `<option value="${c.id}"${String(a.columnist_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}${c.active ? '' : ' (inativo)'}</option>`).join('')}</select>` : ''}
-<label for="quando">Data</label><select id="quando" name="quando"><option value="now">Publicar agora</option><option value="schedule"${agendada ? ' selected' : ''}>Agendar…</option></select>
-<div id="agenda" ${agendada ? '' : 'hidden'}><label for="quando_em">Publicar em (horário de Brasília)</label><input id="quando_em" name="quando_em" type="datetime-local" value="${agendada ? toLocalInput(a.published_at) : ''}"></div>
+<label for="quando">Data</label><select id="quando" name="quando"><option value="now">${aprova ? 'Publicar agora' : 'Publicar assim que aprovada'}</option><option value="schedule"${agendada ? ' selected' : ''}>Agendar…</option></select>
+<div id="agenda" ${agendada ? '' : 'hidden'}><label for="quando_em">Publicar em (horário de Brasília)</label><input id="quando_em" name="quando_em" type="datetime-local" value="${agendada ? toLocalInput(pedida ? a.review_when : a.published_at) : ''}"></div>
 ${can(user, 'manchete') ? `<label class="check"><input type="checkbox" name="featured" value="1"${a.featured ? ' checked' : ''}> Manchete da página inicial</label>` : ''}</div>
 <div><h3>Imagem de capa</h3>${a.image ? `<div class="prev"><img src="${esc(imgUrl(a.image))}" alt="Imagem atual"><label class="check"><input type="checkbox" name="remove_image" value="1"> Remover imagem</label></div>` : ''}
 <label for="img">${a.image ? 'Trocar imagem' : 'Enviar imagem'}</label><input id="img" name="image" type="file" accept="image/jpeg,image/png,image/webp"><p class="ajuda">JPG, PNG ou WEBP, até 5 MB. Ideal: proporção 16:9.</p>
@@ -486,4 +495,20 @@ ${cats.length ? `<div class="cats-grade">${cats.map((c) => `<label class="check"
 <label for="u-senha">${isNew ? 'Senha inicial' : 'Nova senha (deixe em branco para manter)'}</label><input id="u-senha" name="senha" type="password" autocomplete="new-password" minlength="10"${isNew ? ' required' : ''}>
 <p class="ajuda">Mínimo de 10 caracteres. ${isNew ? 'Passe a senha para a pessoa; ela pode trocar depois em “Minha conta”.' : 'Ao trocar, a pessoa é desconectada e precisa entrar com a senha nova.'}</p>
 <div class="acoes-form"><a class="btn" href="/admin/usuarios">Cancelar</a><button class="btn pri">${isNew ? 'Cadastrar usuário' : 'Salvar alterações'}</button></div></form>`;
+}
+
+/* =============== aprovações =============== */
+export function approvalsView({ items, csrf }) {
+  const hidden = `<input type="hidden" name="_csrf" value="${esc(csrf)}">`;
+  return `<div class="topo"><h1>Aprovações</h1></div>
+<p class="ajuda" style="margin:-8px 0 16px">Notícias que os redatores enviaram. Aprovar coloca no ar (ou agenda, se o redator pediu um horário). Devolver manda de volta com o motivo.</p>
+${items.length ? `<div class="fila">${items.map((a) => `<article class="fila-item">
+<div class="fila-info"><h2><a href="/admin/noticias/${a.id}">${esc(a.title)}</a></h2>
+<p class="ajuda">${esc(a.cat_name || 'Sem categoria')} · por ${esc(a.creator_name || 'usuário removido')}${a.review_sent_at ? ` · enviada em ${fmtShort(a.review_sent_at)}` : ''}</p>
+<p class="ajuda">${a.review_when && toDate(a.review_when) > new Date() ? `Pediu para publicar em <b>${fmtShort(a.review_when)}</b>` : 'Publica assim que aprovada'}</p>
+${a.summary ? `<p class="fila-resumo">${esc(a.summary)}</p>` : ''}</div>
+<div class="fila-acoes"><a class="btn peq" href="/admin/noticias/${a.id}">Revisar e editar</a>
+<form method="post" action="/admin/aprovacoes/${a.id}/aprovar" data-confirm="Aprovar e publicar &quot;${esc(a.title)}&quot;?">${hidden}<button class="btn peq pri">Aprovar e publicar</button></form>
+<details><summary class="btn peq perigo">Devolver</summary><form method="post" action="/admin/aprovacoes/${a.id}/devolver">${hidden}<label for="motivo-${a.id}">O que precisa ajustar?</label><textarea id="motivo-${a.id}" name="motivo" rows="3" maxlength="600" placeholder="Ex.: confirmar a fonte do segundo parágrafo"></textarea><button class="btn peq">Devolver ao redator</button></form></details></div>
+</article>`).join('')}</div>` : `<p class="vazio">Nenhuma notícia aguardando aprovação.</p>`}`;
 }

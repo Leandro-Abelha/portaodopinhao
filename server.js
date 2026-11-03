@@ -98,6 +98,7 @@ async function requireAuth(req, res, next) {
   if (!s) return res.redirect('/admin/entrar');
   req.user = { id: s.uid, email: s.email, name: s.name, role: V.ROLES[s.role] ? s.role : 'redator', cats: [] };
   if (req.user.role === 'redator') req.user.cats = (await all('SELECT category_id FROM user_categories WHERE user_id = ?', [s.uid])).map((r) => r.category_id);
+  if (V.can(req.user, 'aprovar')) req.user.pendentes = Number((await one(`SELECT COUNT(*) c FROM articles WHERE review_status = 'pendente'`)).c);
   req.csrf = s.csrf;
   res.set('Cache-Control', 'no-store');
   next();
@@ -278,10 +279,11 @@ app.use('/admin/categorias', allow('categorias'));
 app.use('/admin/colunistas', allow('colunistas'));
 app.use('/admin/redes', allow('redes'));
 app.use('/admin/usuarios', allow('usuarios'));
+app.use('/admin/aprovacoes', allow('aprovar'));
 /* o redator só enxerga as notícias das categorias dele (ids vêm do banco, já são números) */
 const escopo = (u) => (u.role !== 'redator' ? 'true' : u.cats.length ? `a.category_id IN (${u.cats.map(Number).join(',')})` : 'false');
 const catsDo = async (u) => (u.role === 'redator' ? (await cats()).filter((c) => u.cats.includes(c.id)) : cats());
-const flash = (req) => ({ msg: { ok: 'Feito.', pub: 'Notícia publicada com sucesso.', draft: 'Rascunho salvo.', del: 'Notícia apagada.', ag: 'Notícia agendada com sucesso.', cat: 'Categoria salva.', conta: 'Conta atualizada.', img: 'Imagem enviada.', redes: 'Redes sociais atualizadas.', col: 'Colunista salvo.', usu: 'Usuário salvo.', usudel: 'Usuário excluído.' }[req.query.ok] || '' });
+const flash = (req) => ({ msg: { ok: 'Feito.', pub: 'Notícia publicada com sucesso.', draft: 'Rascunho salvo.', del: 'Notícia apagada.', ag: 'Notícia agendada com sucesso.', cat: 'Categoria salva.', conta: 'Conta atualizada.', img: 'Imagem enviada.', redes: 'Redes sociais atualizadas.', col: 'Colunista salvo.', usu: 'Usuário salvo.', usudel: 'Usuário excluído.', env: 'Notícia enviada para aprovação.', aprov: 'Notícia aprovada e publicada.', devol: 'Notícia devolvida ao redator.' }[req.query.ok] || '' });
 
 /* =============== ADMIN: painel =============== */
 app.get('/admin', async (req, res) => {
@@ -319,8 +321,8 @@ app.get('/admin/estatisticas', async (req, res) => {
 });
 
 app.get('/admin/noticias', async (req, res) => {
-  const filter = ['published', 'draft', 'scheduled'].includes(req.query.status) ? req.query.status : 'todas';
-  const where = { todas: 'true', published: LIVE, draft: `a.status = 'draft'`, scheduled: `a.status = 'published' AND a.published_at > now()` }[filter];
+  const filter = ['published', 'draft', 'scheduled', 'pendente'].includes(req.query.status) ? req.query.status : 'todas';
+  const where = { todas: 'true', published: LIVE, draft: `a.status = 'draft' AND a.review_status IS DISTINCT FROM 'pendente'`, scheduled: `a.status = 'published' AND a.published_at > now()`, pendente: `a.review_status = 'pendente'` }[filter];
   const items = await all(`${SELECT_ADM} WHERE ${escopo(req.user)} AND ${where} ORDER BY a.updated_at DESC LIMIT 200`);
   page(req, res, { title: 'Todas as notícias', crumb: 'NOTÍCIAS / TODAS', active: '/admin/noticias', body: V.articlesListView({ items, filter, csrf: req.csrf, user: req.user }), ...flash(req) });
 });
@@ -330,7 +332,7 @@ const renderForm = async (req, res, a, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: a.id ? 'Editar notícia' : 'Nova notícia', crumb: a.id ? 'NOTÍCIAS / EDITAR' : 'NOTÍCIAS / NOVA PUBLICAÇÃO', active: a.id ? '/admin/noticias' : '/admin/noticias/nova',
     erro: erros.map(V.esc).join('<br>'), body: V.articleForm({ a, cats: await catsDo(req.user), columnists: await allColumnists(), csrf: req.csrf, user: req.user }) }));
 const SEM_CATEGORIA = 'Você ainda não tem nenhuma categoria liberada para escrever. Peça ao administrador do portal.';
-const SO_SUAS = 'Você só pode editar as notícias que criou, dentro das suas categorias.';
+const SO_SUAS = 'Você só pode editar as notícias que criou, dentro das suas categorias, enquanto não forem aprovadas.';
 
 app.post('/admin/editor/imagem', takeUpload, checkCsrf, async (req, res) => {
   if (req.uploadError || !req.file) return res.status(400).json({ erro: req.uploadError || 'Escolha uma imagem JPG, PNG ou WEBP.' });
@@ -340,7 +342,7 @@ app.post('/admin/editor/imagem', takeUpload, checkCsrf, async (req, res) => {
 
 app.get('/admin/noticias/nova', (req, res) => (req.user.role === 'redator' && !req.user.cats.length ? semAcesso(req, res, SEM_CATEGORIA) : renderForm(req, res, { ...blank, author: req.user.name })));
 app.get('/admin/noticias/:id', async (req, res, next) => {
-  const a = await one('SELECT * FROM articles WHERE id = ?', [Number(req.params.id) || 0]);
+  const a = await one(`${SELECT_ADM} WHERE a.id = ?`, [Number(req.params.id) || 0]);
   if (!a) return next();
   if (!V.canEditArticle(req.user, a)) return semAcesso(req, res, SO_SUAS);
   await renderForm(req, res, { ...a, body: cleanBody(a.body) });
@@ -351,10 +353,12 @@ async function saveArticle(req, res, id) {
   const old = id ? await one('SELECT * FROM articles WHERE id = ?', [id]) : null;
   if (id && !old) return res.status(404).send('Notícia não encontrada.');
   const u = req.user;
+  const aprova = V.can(u, 'aprovar');
   if (old && !V.canEditArticle(u, old)) return semAcesso(req, res, SO_SUAS);
   if (!old && u.role === 'redator' && !u.cats.length) return semAcesso(req, res, SEM_CATEGORIA);
   const b = req.body || {};
   const publish = b.action === 'publish';
+  const envia = publish && !aprova; // redator: em vez de publicar, manda para a fila de aprovação
   const body = cleanBody(b.body);
   let catId = (await one('SELECT id FROM categories WHERE id = ?', [Number(b.category_id) || 0]))?.id || null;
   const catProibida = u.role === 'redator' && catId && !u.cats.includes(catId);
@@ -364,7 +368,7 @@ async function saveArticle(req, res, id) {
   const featured = V.can(u, 'manchete') ? (b.featured ? 1 : 0) : old?.featured ? 1 : 0;
   const videoUrl = cleanLine(b.video_url, 300);
   const a = { ...(old || blank), id: old?.id, title: cleanLine(b.title, 160), summary: cleanLine(b.summary, 220), body, category_id: catId, columnist_id: columnistId, tags: cleanLine(b.tags, 120), author: cleanLine(b.author, 80),
-    image: old?.image || '', image_credit: cleanLine(b.image_credit, 120), video_url: videoUrl, featured, status: publish ? 'published' : 'draft' };
+    image: old?.image || '', image_credit: cleanLine(b.image_credit, 120), video_url: videoUrl, featured, status: publish && aprova ? 'published' : 'draft' };
 
   const erros = [];
   if (req.uploadError) erros.push(req.uploadError + ' O conteúdo preenchido permanece.');
@@ -384,25 +388,49 @@ async function saveArticle(req, res, id) {
   }
   if (erros.length) return renderForm(req, res, { ...a, published_at: old?.published_at, image: old?.image || '' }, erros, 422);
 
+  let review = old?.review_status || null, reviewNote = old?.review_note || '', reviewWhen = old?.review_when || null, sentAt = old?.review_sent_at || null;
+  if (envia) { review = 'pendente'; reviewNote = ''; reviewWhen = b.quando === 'schedule' ? when : null; sentAt = nowIso(); when = old?.published_at || null; }
+  else if (publish) { review = null; reviewNote = ''; reviewWhen = null; } // publicada por quem aprova: sai da fila
+  else if (!aprova && review === 'pendente') review = null; // o redator salvou como rascunho: tira da fila
+
   if (req.file) { await removeImage(old?.image); a.image = await storeImage(req.file); }
   else if (b.remove_image) { await removeImage(old?.image); a.image = ''; }
   a.slug = old && old.title === a.title ? old.slug : await uniqueSlug(a.title, id || 0);
   if (old && old.status === 'published' && old.title !== a.title) a.slug = old.slug; // mantém o endereço já divulgado
   if (a.featured) await run('UPDATE articles SET featured = 0');
 
-  const vals = [a.title, a.slug, a.summary, a.body, a.category_id, a.columnist_id, a.image || null, a.image_credit, a.tags, a.author, a.status, a.featured, when, a.video_url];
-  if (old) await run(`UPDATE articles SET title=?, slug=?, summary=?, body=?, category_id=?, columnist_id=?, image=?, image_credit=?, tags=?, author=?, status=?, featured=?, published_at=?, video_url=?, updated_at=now() WHERE id=?`, [...vals, id]);
-  else await run(`INSERT INTO articles (title, slug, summary, body, category_id, columnist_id, image, image_credit, tags, author, status, featured, published_at, video_url, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [...vals, u.id]);
-  res.redirect(`/admin/noticias?ok=${!publish ? 'draft' : b.quando === 'schedule' ? 'ag' : 'pub'}`);
+  const vals = [a.title, a.slug, a.summary, a.body, a.category_id, a.columnist_id, a.image || null, a.image_credit, a.tags, a.author, a.status, a.featured, when, a.video_url, review, reviewNote, reviewWhen, sentAt];
+  if (old) await run(`UPDATE articles SET title=?, slug=?, summary=?, body=?, category_id=?, columnist_id=?, image=?, image_credit=?, tags=?, author=?, status=?, featured=?, published_at=?, video_url=?, review_status=?, review_note=?, review_when=?, review_sent_at=?, updated_at=now() WHERE id=?`, [...vals, id]);
+  else await run(`INSERT INTO articles (title, slug, summary, body, category_id, columnist_id, image, image_credit, tags, author, status, featured, published_at, video_url, review_status, review_note, review_when, review_sent_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [...vals, u.id]);
+  res.redirect(`/admin/noticias?ok=${envia ? 'env' : !publish ? 'draft' : b.quando === 'schedule' ? 'ag' : 'pub'}`);
 }
 app.post('/admin/noticias', takeUpload, checkCsrf, (req, res) => saveArticle(req, res, 0));
 app.post('/admin/noticias/:id', takeUpload, checkCsrf, (req, res) => saveArticle(req, res, Number(req.params.id) || 0));
 app.post('/admin/noticias/:id/apagar', checkCsrf, async (req, res) => {
   const id = Number(req.params.id) || 0;
-  const a = await one('SELECT image, created_by, category_id FROM articles WHERE id = ?', [id]);
+  const a = await one('SELECT image, created_by, category_id, status FROM articles WHERE id = ?', [id]);
   if (a && !V.canEditArticle(req.user, a)) return semAcesso(req, res, SO_SUAS);
   if (a) { await run('DELETE FROM articles WHERE id = ?', [id]); await removeImage(a.image); }
   res.redirect('/admin/noticias?ok=del');
+});
+
+/* =============== ADMIN: aprovação das notícias dos redatores =============== */
+const aprovacoesPage = async (req, res, extra = {}) => page(req, res, { title: 'Aprovações', crumb: 'NOTÍCIAS / APROVAÇÕES', active: '/admin/aprovacoes',
+  body: V.approvalsView({ items: await all(`${SELECT_ADM} WHERE a.review_status = 'pendente' ORDER BY a.review_sent_at, a.id`), csrf: req.csrf }), ...extra });
+app.get('/admin/aprovacoes', (req, res) => aprovacoesPage(req, res, flash(req)));
+app.post('/admin/aprovacoes/:id/aprovar', checkCsrf, async (req, res) => {
+  const a = await one(`SELECT * FROM articles WHERE id = ? AND review_status = 'pendente'`, [Number(req.params.id) || 0]);
+  if (!a) return res.redirect('/admin/aprovacoes');
+  if (!a.category_id || !plain(cleanBody(a.body))) return aprovacoesPage(req, res, { erro: 'Essa notícia está sem categoria ou sem texto. Abra em “Revisar” para completar antes de aprovar.' });
+  /* se o redator pediu um horário futuro, a notícia fica agendada para ele */
+  const when = a.review_when && new Date(a.review_when) > new Date() ? a.review_when : nowIso();
+  await run(`UPDATE articles SET status = 'published', published_at = ?, review_status = NULL, review_note = '', review_when = NULL, updated_at = now() WHERE id = ?`, [when, a.id]);
+  res.redirect('/admin/aprovacoes?ok=aprov');
+});
+app.post('/admin/aprovacoes/:id/devolver', checkCsrf, async (req, res) => {
+  const motivo = String(req.body.motivo || '').replace(/\r/g, '').trim().slice(0, 600);
+  await run(`UPDATE articles SET review_status = 'devolvida', review_note = ?, updated_at = now() WHERE id = ? AND review_status = 'pendente'`, [motivo, Number(req.params.id) || 0]);
+  res.redirect('/admin/aprovacoes?ok=devol');
 });
 
 /* =============== ADMIN: categorias, mídia, conta =============== */
