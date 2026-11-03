@@ -137,3 +137,22 @@ input[type=file]::file-selector-button:hover{border-color:#172027}
 .fila-acoes details label{margin-top:8px}
 .fila-acoes details textarea{font-size:14px;margin-bottom:6px}
 @media(max-width:860px){.fila-item{grid-template-columns:1fr}.fila-acoes{min-width:0}}
+
+/* app instalável: aviso para instalar e tela sem conexão */
+.instalar-app{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--linha);border-left:4px solid var(--verde-vivo);padding:12px 14px;margin-bottom:18px;border-radius:4px;box-shadow:0 2px 10px rgba(20,24,26,.08)}
+.instalar-app[hidden]{display:none}
+.instalar-app img{width:44px;height:44px;border-radius:10px;flex:none}
+.instalar-app b{font-size:15px}
+.instalar-app p{font-size:13px;color:var(--suave);margin-top:2px}
+.instalar-app>div:nth-child(2){flex:1;min-width:0}
+.instalar-acoes{display:flex;gap:6px;flex:none}
+.instalar-acoes [hidden]{display:none}
+.ios-compartilhar{display:inline-block;width:14px;height:16px;vertical-align:-2px;border:2px solid currentColor;border-top:0;border-radius:0 0 3px 3px;position:relative;margin:0 2px}
+.ios-compartilhar::before{content:'';position:absolute;left:3px;top:-6px;width:2px;height:11px;background:currentColor}
+.ios-compartilhar::after{content:'';position:absolute;left:1px;top:-6px;width:4px;height:4px;border-left:2px solid currentColor;border-top:2px solid currentColor;transform:rotate(45deg)}
+.login{flex-direction:column;gap:14px}
+.login .instalar-app{width:100%;max-width:380px;margin:0}
+.login .instalar-app .btn{width:auto;margin:0;padding:5px 10px;font-size:13px}
+.offline{background:#fff;width:100%;max-width:380px;padding:28px;border-radius:4px;border-top:5px solid var(--verde-vivo);text-align:center}
+.offline p{color:var(--suave);margin:8px 0 18px}
+@media(max-width:520px){.instalar-app{flex-wrap:wrap}.instalar-acoes{width:100%;justify-content:flex-end}}

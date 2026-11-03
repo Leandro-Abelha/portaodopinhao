@@ -202,32 +202,38 @@ export const can = (u, p) => Boolean(u && ROLES[u.role]?.pode.includes(p));
 /* administrador e editor mexem em qualquer notícia; o redator só nas que criou, dentro das categorias dele, antes da aprovação */
 export const canEditArticle = (u, a) => u.role !== 'redator' || (a.created_by === u.id && a.status !== 'published' && (a.category_id == null || u.cats.includes(a.category_id)));
 
+/* app instalável do painel (PWA): manifesto, ícones e o aviso de instalação */
+const APP_HEAD = `<link rel="manifest" href="/manifest-admin.webmanifest"><meta name="theme-color" content="#14181a"><link rel="apple-touch-icon" href="/app-icone-180.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Painel Pinhão"><meta name="apple-mobile-web-app-status-bar-style" content="black">`;
+const instalarApp = () => `<div class="instalar-app" id="instalar-app" role="region" aria-label="Instalar o app do painel" hidden><img src="/app-icone-192.png" alt="" width="44" height="44">
+<div><b>Instale o app do painel</b><p data-texto>Abra o painel direto da tela inicial do celular, como um aplicativo, sem passar pelo navegador.</p></div>
+<div class="instalar-acoes"><button type="button" class="btn pri peq" data-instalar hidden>Instalar</button><button type="button" class="btn peq" data-fechar>Agora não</button></div></div>`;
+
 const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas', 'estatisticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/aprovacoes', 'Aprovações', 'aprovar'], ['/admin/categorias', 'Categorias', 'categorias'], ['/admin/colunistas', 'Colunistas', 'colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais', 'redes'], ['/admin/usuarios', 'Usuários', 'usuarios'], ['/admin/conta', 'Minha conta']];
 
 export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>${esc(title)} | Painel do Pinhão</title>${FONTS}<link rel="stylesheet" href="/admin.css"></head><body>
+<title>${esc(title)} | Painel do Pinhão</title>${APP_HEAD}${FONTS}<link rel="stylesheet" href="/admin.css"></head><body>
 <div class="shell"><aside class="side"><a class="logo" href="/admin" aria-label="Painel"><img src="/logo-escuro.svg" alt="Portal do Pinhão"></a>
 <nav style="display:flex;flex-direction:column" aria-label="Painel">${NAV.filter(([, , p]) => !p || can(user, p)).map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}${h === '/admin/aprovacoes' && user.pendentes ? ` <span class="contador" aria-label="${user.pendentes} aguardando">${user.pendentes}</span>` : ''}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
 <div class="conta">${esc(ROLES[user.role]?.nome || 'Conta editorial')}<b>${esc(user.name)}</b>${esc(user.email)}<form method="post" action="/admin/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="sair">Sair</button></form></div></aside>
 <main><p class="crumb">${esc(crumb)}</p>${msg ? `<p class="msg" role="status">${esc(msg)}</p>` : ''}${erro ? `<p class="msg erro" role="alert">${erro}</p>` : ''}${body}</main></div>
-<script src="/editor.js"></script></body></html>`;
+<script src="/editor.js"></script><script src="/app.js"></script></body></html>`;
 }
 
 export function loginView({ erro = '', email = '' }) {
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Entrar | Painel do Pinhão</title>${FONTS}<link rel="stylesheet" href="/admin.css"></head>
-<body><div class="login"><form method="post" action="/admin/entrar"><img src="/logo-claro.svg" alt="Portal do Pinhão"><h1>Entrar no painel</h1>
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Entrar | Painel do Pinhão</title>${APP_HEAD}${FONTS}<link rel="stylesheet" href="/admin.css"></head>
+<body><div class="login">${instalarApp()}<form method="post" action="/admin/entrar"><img src="/logo-claro.svg" alt="Portal do Pinhão"><h1>Entrar no painel</h1>
 ${erro ? `<p class="msg erro" role="alert" style="margin:10px 0 0">${esc(erro)}</p>` : ''}
 <label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="username" required autofocus value="${esc(email)}">
 <label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required>
-<button class="btn pri" type="submit">Entrar</button><a href="/">← Voltar ao site</a></form></div></body></html>`;
+<button class="btn pri" type="submit">Entrar</button><a href="/">← Voltar ao site</a></form></div><script src="/app.js"></script></body></html>`;
 }
 
 const statusOf = (a) => (a.status !== 'published' && a.review_status === 'pendente' ? ['pending', 'Aguardando aprovação'] : a.status !== 'published' && a.review_status === 'devolvida' ? ['returned', 'Devolvida'] : a.status === 'published' ? (toDate(a.published_at) > new Date() ? ['scheduled', 'Agendada'] : ['published', 'Publicada']) : ['draft', 'Rascunho']);
 export const statusBadge = (a) => { const [c, l] = statusOf(a); return `<span class="st ${c}">${l}</span>`; };
 
 export function dashboardView({ counts, recent, csrf, user }) {
-  return `<div class="topo"><h1>Visão geral</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
+  return `${instalarApp()}<div class="topo"><h1>Visão geral</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="kpis"><div><b>${counts.published}</b><span>Publicadas</span></div><div><b>${counts.draft}</b><span>Rascunhos</span></div><div><b>${counts.scheduled}</b><span>Agendadas</span></div><div><b>${counts.today}</b><span>Publicadas hoje</span></div></div>
 ${user.pendentes ? `<p class="msg"><a href="/admin/aprovacoes"><b>${user.pendentes === 1 ? '1 notícia aguarda' : `${user.pendentes} notícias aguardam`} aprovação.</b> Revisar agora</a></p>` : ''}
 <h2>Últimas alterações</h2>${articlesTable(recent, csrf, user)}`;
