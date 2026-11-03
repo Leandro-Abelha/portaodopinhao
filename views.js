@@ -210,13 +210,51 @@ const instalarApp = () => `<div class="instalar-app" id="instalar-app" role="reg
 
 const NAV = [['/admin', 'Visão geral'], ['/admin/estatisticas', 'Estatísticas', 'estatisticas'], ['/admin/noticias/nova', 'Nova notícia'], ['/admin/noticias', 'Todas as notícias'], ['/admin/aprovacoes', 'Aprovações', 'aprovar'], ['/admin/categorias', 'Categorias', 'categorias'], ['/admin/colunistas', 'Colunistas', 'colunistas'], ['/admin/midia', 'Mídia'], ['/admin/redes', 'Redes sociais', 'redes'], ['/admin/usuarios', 'Usuários', 'usuarios'], ['/admin/conta', 'Minha conta']];
 
-export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', script = false }) {
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>${esc(title)} | Painel do Pinhão</title>${APP_HEAD}${FONTS}<link rel="stylesheet" href="/admin.css"></head><body>
+/* ícones da navegação do celular (traço simples, herdam a cor do texto) */
+const ICONE = {
+  inicio: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  noticias: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  escrever: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  aprovar: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>',
+  midia: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>',
+  mais: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  voltar: '<path d="M15 5l-7 7 7 7"/>',
+};
+const svg = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[n]}</svg>`;
+const contador = (n) => (n ? ` <span class="contador" aria-label="${n} aguardando">${n}</span>` : '');
+
+/* celular: barra inferior com as tarefas do dia a dia; o resto fica na gaveta "Mais" */
+function barraInferior(user, csrf, active) {
+  const aprova = can(user, 'aprovar');
+  const quarta = aprova ? ['/admin/aprovacoes', 'Aprovar', 'aprovar', contador(user.pendentes)] : ['/admin/midia', 'Mídia', 'midia', ''];
+  const naBarra = ['/admin', '/admin/noticias', '/admin/noticias/nova', quarta[0]];
+  const resto = NAV.filter(([h, , p]) => (!p || can(user, p)) && !naBarra.includes(h));
+  const tab = ([h, l, ic, extra = '']) => `<a class="tab" href="${h}"${active === h ? ' aria-current="page"' : ''}>${svg(ic)}<span>${l}${extra}</span></a>`;
+  const maisAtivo = resto.some(([h]) => h === active);
+  return `<nav class="barra-app" aria-label="Navegação do painel">
+${tab(['/admin', 'Início', 'inicio'])}${tab(['/admin/noticias', 'Notícias', 'noticias'])}
+<a class="tab escrever" href="/admin/noticias/nova"${active === '/admin/noticias/nova' ? ' aria-current="page"' : ''}><span class="escrever-bola">${svg('escrever')}</span><span>Escrever</span></a>
+${tab(quarta)}
+<details class="mais"><summary class="tab"${maisAtivo ? ' aria-current="page"' : ''}>${svg('mais')}<span>Mais</span></summary>
+<div class="mais-fundo" data-fechar-mais></div>
+<div class="mais-painel"><div class="mais-conta"><span class="avatar" aria-hidden="true">${esc(user.name.slice(0, 1).toUpperCase())}</span><div><b>${esc(user.name)}</b><span>${esc(ROLES[user.role]?.nome || '')} · ${esc(user.email)}</span></div></div>
+<div class="mais-links">${resto.map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site</a></div>
+<form method="post" action="/admin/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn sair-btn">Sair da conta</button></form></div></details>
+</nav>`;
+}
+
+/* foco: telas de escrever (editor) escondem a barra inferior e mostram só o caminho de volta */
+export function adminLayout({ title, crumb, user, csrf, active, body, msg = '', erro = '', foco = null }) {
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex">
+<title>${esc(title)} | Painel do Pinhão</title>${APP_HEAD}${FONTS}<link rel="stylesheet" href="/admin.css"></head><body${foco ? ' class="em-foco"' : ''}>
+<header class="topo-app">${foco ? `<a class="topo-voltar" href="${esc(foco.href)}">${svg('voltar')}<span>${esc(foco.label)}</span></a>`
+    : `<a class="topo-marca" href="/admin"><img src="/icone.svg" alt="" width="14" height="24"><span>Painel do Pinhão</span></a>`}
+<a class="avatar" href="/admin/conta" aria-label="Minha conta">${esc(user.name.slice(0, 1).toUpperCase())}</a></header>
 <div class="shell"><aside class="side"><a class="logo" href="/admin" aria-label="Painel"><img src="/logo-escuro.svg" alt="Portal do Pinhão"></a>
-<nav style="display:flex;flex-direction:column" aria-label="Painel">${NAV.filter(([, , p]) => !p || can(user, p)).map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}${h === '/admin/aprovacoes' && user.pendentes ? ` <span class="contador" aria-label="${user.pendentes} aguardando">${user.pendentes}</span>` : ''}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
+<nav class="side-nav" aria-label="Painel">${NAV.filter(([, , p]) => !p || can(user, p)).map(([h, l]) => `<a href="${h}"${active === h ? ' aria-current="page"' : ''}>${l}${h === '/admin/aprovacoes' ? contador(user.pendentes) : ''}</a>`).join('')}<a href="/" target="_blank" rel="noopener">Ver o site ↗</a></nav>
 <div class="conta">${esc(ROLES[user.role]?.nome || 'Conta editorial')}<b>${esc(user.name)}</b>${esc(user.email)}<form method="post" action="/admin/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="sair">Sair</button></form></div></aside>
 <main><p class="crumb">${esc(crumb)}</p>${msg ? `<p class="msg" role="status">${esc(msg)}</p>` : ''}${erro ? `<p class="msg erro" role="alert">${erro}</p>` : ''}${body}</main></div>
+${foco ? '' : barraInferior(user, csrf, active)}
 <script src="/editor.js"></script><script src="/app.js"></script></body></html>`;
 }
 
@@ -233,7 +271,7 @@ const statusOf = (a) => (a.status !== 'published' && a.review_status === 'penden
 export const statusBadge = (a) => { const [c, l] = statusOf(a); return `<span class="st ${c}">${l}</span>`; };
 
 export function dashboardView({ counts, recent, csrf, user }) {
-  return `${instalarApp()}<div class="topo"><h1>Visão geral</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
+  return `${instalarApp()}<div class="topo"><h1>Visão geral</h1><a class="btn pri so-desktop" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="kpis"><div><b>${counts.published}</b><span>Publicadas</span></div><div><b>${counts.draft}</b><span>Rascunhos</span></div><div><b>${counts.scheduled}</b><span>Agendadas</span></div><div><b>${counts.today}</b><span>Publicadas hoje</span></div></div>
 ${user.pendentes ? `<p class="msg"><a href="/admin/aprovacoes"><b>${user.pendentes === 1 ? '1 notícia aguarda' : `${user.pendentes} notícias aguardam`} aprovação.</b> Revisar agora</a></p>` : ''}
 <h2>Últimas alterações</h2>${articlesTable(recent, csrf, user)}`;
@@ -280,15 +318,15 @@ export function articlesTable(items, csrf, user) {
     const acoes = pode ? `<a class="btn peq" href="/admin/noticias/${a.id}">Editar</a>
 <form method="post" action="/admin/noticias/${a.id}/apagar" data-confirm="Apagar &quot;${esc(a.title)}&quot;? Não dá para desfazer."><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form>`
       : `${noAr(a) ? `<a class="btn peq" href="/noticia/${esc(a.slug)}" target="_blank" rel="noopener">Ver no site</a> ` : ''}<span class="ajuda" title="${a.created_by === user.id ? 'Depois de aprovada, só editor ou administrador altera' : 'Você só edita as notícias que criou'}">Só leitura</span>`;
-    return `<tr><td>${titulo}${a.featured ? ' <span class="st published">Manchete</span>' : ''}${a.creator_name ? `<br><span class="ajuda">por ${esc(a.creator_name)}</span>` : ''}${a.review_status === 'devolvida' && a.review_note && a.status !== 'published' ? `<br><span class="nota-devolvida">Ajustes pedidos: ${esc(a.review_note)}</span>` : ''}</td><td>${esc(a.cat_name || '—')}</td><td>${statusBadge(a)}</td>
-<td>${fmtShort(a.published_at || a.updated_at)}</td><td class="acoes">${acoes}</td></tr>`;
+    return `<tr><td class="c-titulo">${titulo}${a.featured ? ' <span class="st published">Manchete</span>' : ''}${a.creator_name ? `<br><span class="ajuda">por ${esc(a.creator_name)}</span>` : ''}${a.review_status === 'devolvida' && a.review_note && a.status !== 'published' ? `<br><span class="nota-devolvida">Ajustes pedidos: ${esc(a.review_note)}</span>` : ''}</td><td class="c-cat">${esc(a.cat_name || '—')}</td><td class="c-status">${statusBadge(a)}</td>
+<td class="c-data">${fmtShort(a.published_at || a.updated_at)}</td><td class="acoes">${acoes}</td></tr>`;
   };
-  return `<table><thead><tr><th>Título</th><th>Categoria</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>${items.map(linha).join('')}</tbody></table>`;
+  return `<table class="noticias"><thead><tr><th>Título</th><th>Categoria</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>${items.map(linha).join('')}</tbody></table>`;
 }
 
 export function articlesListView({ items, filter, csrf, user }) {
   const f = [['todas', 'Todas'], ['published', 'Publicadas'], ['scheduled', 'Agendadas'], ['pendente', 'Aguardando aprovação'], ['draft', 'Rascunhos']];
-  return `<div class="topo"><h1>Todas as notícias</h1><a class="btn pri" href="/admin/noticias/nova">Nova notícia</a></div>
+  return `<div class="topo"><h1>Todas as notícias</h1><a class="btn pri so-desktop" href="/admin/noticias/nova">Nova notícia</a></div>
 <div class="filtros">${f.map(([k, l]) => `<a href="/admin/noticias?status=${k}"${filter === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</div>${articlesTable(items, csrf, user)}`;
 }
 
@@ -324,7 +362,6 @@ ${aviso}<div class="editor-layout"><section>
 <textarea name="body" id="body" hidden></textarea>
 <p class="ajuda" id="contador-texto">0 palavras · 0 caracteres</p>
 <p class="ajuda">Campos obrigatórios para ${aprova ? 'publicar' : 'enviar'}: título, categoria e texto. Para salvar um rascunho basta o título.${aprova ? '' : ' Um editor ou administrador revisa a notícia antes de ela entrar no site.'}</p>
-<div class="acoes-form"><button class="btn" name="action" value="draft">Salvar rascunho</button><button class="btn pri" name="action" value="publish">${rotuloPublicar}</button></div>
 </section>
 <aside class="lateral">
 <div><h3>Publicação</h3><label for="cat">Categoria</label><select id="cat" name="category_id"><option value="">Escolha…</option>${cats.map((c) => `<option value="${c.id}"${String(a.category_id) === String(c.id) ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
@@ -337,13 +374,14 @@ ${can(user, 'manchete') ? `<label class="check"><input type="checkbox" name="fea
 <label for="cred">Crédito da foto</label><input id="cred" name="image_credit" type="text" value="${esc(a.image_credit)}" placeholder="Foto: nome"></div>
 <div><h3>Vídeo (opcional)</h3><label for="video">Link do YouTube, Instagram ou Facebook</label><input id="video" name="video_url" type="url" value="${esc(a.video_url || '')}" placeholder="https://..."><p class="ajuda">Cole o link da página do vídeo. Ele aparece embutido na notícia publicada, acima do texto.</p></div>
 <div><h3>Organização</h3><label for="tags">Tags</label><input id="tags" name="tags" type="text" value="${esc(a.tags)}" placeholder="curitiba, cultura"><label for="autor">Autor</label><input id="autor" name="author" type="text" value="${esc(a.author)}" placeholder="Redação do Portal"></div>
-</aside></div></form>`;
+</aside></div>
+<div class="barra-publicar"><button class="btn" name="action" value="draft">Salvar rascunho</button><button class="btn pri" name="action" value="publish">${rotuloPublicar}</button></div></form>`;
 }
 
 export function categoriesView({ cats, csrf }) {
   const mover = (c, i) => `<form method="post" action="/admin/categorias/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="cima"><button class="btn peq" ${i === 0 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para cima" title="Mover para cima">↑</button></form>
 <form method="post" action="/admin/categorias/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="baixo"><button class="btn peq" ${i === cats.length - 1 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para baixo" title="Mover para baixo">↓</button></form>`;
-  return `<div class="topo"><h1>Categorias</h1></div><div class="duas"><div><table><thead><tr><th>Ordem</th><th>Nome</th><th>Notícias</th><th></th></tr></thead><tbody>${cats.map((c, i) => `<tr><td class="ordem">${mover(c, i)}</td><td><b>${esc(c.name)}</b></td><td>${c.total}</td><td class="acoes">
+  return `<div class="topo"><h1>Categorias</h1></div><div class="duas"><div><table class="cards com-ordem"><thead><tr><th>Ordem</th><th>Nome</th><th>Notícias</th><th></th></tr></thead><tbody>${cats.map((c, i) => `<tr><td class="ordem">${mover(c, i)}</td><td class="c-titulo"><b>${esc(c.name)}</b></td><td data-label="Notícias">${c.total}</td><td class="acoes">
 <form method="post" action="/admin/categorias/${c.id}/apagar" data-confirm="Apagar a categoria &quot;${esc(c.name)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo"${c.total ? ' disabled title="Mova as notícias antes de apagar"' : ''}>Apagar</button></form></td></tr>`).join('')}</tbody></table>
 <p class="ajuda">A ordem aqui é a mesma do menu do site.</p></div>
 <form class="caixa" method="post" action="/admin/categorias"><input type="hidden" name="_csrf" value="${esc(csrf)}"><h2>Nova categoria</h2><label for="nome">Nome</label><input id="nome" name="name" type="text" required maxlength="40"><p class="ajuda">Aparece no fim do menu do site; use as setas para reordenar.</p><div class="acoes-form"><button class="btn pri">Criar categoria</button></div></form></div>`;
@@ -353,15 +391,15 @@ export function columnistsListView({ items, csrf }) {
   const mover = (c, i) => `<form method="post" action="/admin/colunistas/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="cima"><button class="btn peq" ${i === 0 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para cima" title="Mover para cima">↑</button></form>
 <form method="post" action="/admin/colunistas/${c.id}/mover"><input type="hidden" name="_csrf" value="${esc(csrf)}"><input type="hidden" name="direcao" value="baixo"><button class="btn peq" ${i === items.length - 1 ? 'disabled' : ''} aria-label="Mover ${esc(c.name)} para baixo" title="Mover para baixo">↓</button></form>`;
   return `<div class="topo"><h1>Colunistas</h1><a class="btn pri" href="/admin/colunistas/novo">Novo colunista</a></div>
-${items.length ? `<table><thead><tr><th>Ordem</th><th></th><th>Nome</th><th>Textos</th><th>Situação</th><th></th></tr></thead><tbody>${items.map((c, i) => `<tr><td class="ordem">${mover(c, i)}</td>
-<td>${c.photo ? `<img src="${esc(imgUrl(c.photo))}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover">` : ''}</td>
-<td><a href="/admin/colunistas/${c.id}"><b>${esc(c.name)}</b></a>${c.tagline ? `<br><span class="ajuda">${esc(c.tagline)}</span>` : ''}</td><td>${c.total}</td><td>${c.active ? '<span class="st published">Ativo</span>' : '<span class="st draft">Inativo</span>'}</td>
+${items.length ? `<table class="cards com-ordem"><thead><tr><th>Ordem</th><th></th><th>Nome</th><th>Textos</th><th>Situação</th><th></th></tr></thead><tbody>${items.map((c, i) => `<tr><td class="ordem">${mover(c, i)}</td>
+<td class="c-foto">${c.photo ? `<img src="${esc(imgUrl(c.photo))}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover">` : ''}</td>
+<td class="c-titulo"><a href="/admin/colunistas/${c.id}"><b>${esc(c.name)}</b></a>${c.tagline ? `<br><span class="ajuda">${esc(c.tagline)}</span>` : ''}</td><td data-label="Textos">${c.total}</td><td data-label="Situação">${c.active ? '<span class="st published">Ativo</span>' : '<span class="st draft">Inativo</span>'}</td>
 <td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}">Editar</a>
 <form method="post" action="/admin/colunistas/${c.id}/apagar" data-confirm="Apagar o colunista &quot;${esc(c.name)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo"${c.total ? ' disabled title="Mova as notícias antes de apagar"' : ''}>Apagar</button></form></td></tr>`).join('')}</tbody></table>`
   : `<p class="vazio">Nenhum colunista cadastrado. <a href="/admin/colunistas/novo"><b>Cadastre o primeiro colunista</b></a>.</p>`}`;
 }
 
-export function columnistForm({ c, arts = [], books = [], csrf }) {
+export function columnistForm({ c, arts = [], books = [], csrf, user }) {
   const isNew = !c.id;
   return `<form method="post" enctype="multipart/form-data" action="${isNew ? '/admin/colunistas' : `/admin/colunistas/${c.id}`}">
 <input type="hidden" name="_csrf" value="${esc(csrf)}">
@@ -385,10 +423,10 @@ ${c.photo ? `<div class="prev"><img src="${esc(imgUrl(c.photo))}" alt="Foto atua
 ${!isNew ? `<div class="caixa" style="margin-top:24px">
 <h2 style="margin-top:0">Livros e artigos deste colunista</h2>
 <div class="topo" style="border:0;margin:0 0 6px;padding:0"><h3 style="margin:0">Livros</h3><a class="btn peq" href="/admin/colunistas/${c.id}/livros/novo">Adicionar livro</a></div>
-${books.length ? `<table><thead><tr><th></th><th>Título</th><th>Vitrine</th><th></th></tr></thead><tbody>${books.map((b) => `<tr><td>${b.cover ? `<img src="${esc(imgUrl(b.cover))}" alt="" style="width:32px;height:44px;object-fit:cover">` : ''}</td><td><a href="/admin/colunistas/${c.id}/livros/${b.id}"><b>${esc(b.title)}</b></a></td><td>${b.featured ? '<span class="st published">Em destaque</span>' : ''}</td><td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}/livros/${b.id}">Editar</a>
+${books.length ? `<table class="cards"><thead><tr><th></th><th>Título</th><th>Vitrine</th><th></th></tr></thead><tbody>${books.map((b) => `<tr><td class="c-foto">${b.cover ? `<img src="${esc(imgUrl(b.cover))}" alt="" style="width:32px;height:44px;object-fit:cover">` : ''}</td><td class="c-titulo"><a href="/admin/colunistas/${c.id}/livros/${b.id}"><b>${esc(b.title)}</b></a></td><td class="c-extra">${b.featured ? '<span class="st published">Em destaque</span>' : ''}</td><td class="acoes"><a class="btn peq" href="/admin/colunistas/${c.id}/livros/${b.id}">Editar</a>
 <form method="post" action="/admin/colunistas/${c.id}/livros/${b.id}/apagar" data-confirm="Apagar o livro &quot;${esc(b.title)}&quot;?"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq perigo">Apagar</button></form></td></tr>`).join('')}</tbody></table>` : `<p class="vazio">Nenhum livro cadastrado. Cada livro ganha uma página própria com a sinopse no site.</p>`}
 <h3 style="margin:24px 0 6px">Artigos</h3>
-${arts.length ? articlesTable(arts, csrf) : `<p class="vazio">Nenhuma notícia vinculada a este colunista ainda. <a href="/admin/noticias/nova"><b>Escreva uma notícia</b></a> e selecione este colunista.</p>`}
+${arts.length ? articlesTable(arts, csrf, user) : `<p class="vazio">Nenhuma notícia vinculada a este colunista ainda. <a href="/admin/noticias/nova"><b>Escreva uma notícia</b></a> e selecione este colunista.</p>`}
 </div>` : ''}`;
 }
 
@@ -473,10 +511,10 @@ export function usersListView({ items, csrf, me }) {
   const acao = (u, url, rotulo, confirma, perigo = false) => `<form method="post" action="/admin/usuarios/${u.id}/${url}" data-confirm="${esc(confirma)}"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn peq${perigo ? ' perigo' : ''}"${u.id === me ? ' disabled title="Você não pode fazer isso com a sua própria conta"' : ''}>${rotulo}</button></form>`;
   const acesso = (u) => u.role !== 'redator' ? 'Tudo do perfil' : u.cat_names ? esc(u.cat_names) : '<span class="st draft">Nenhuma categoria</span>';
   return `<div class="topo"><h1>Usuários</h1><a class="btn pri" href="/admin/usuarios/novo">Novo usuário</a></div>
-<table><thead><tr><th>Nome</th><th>Perfil</th><th>Acesso</th><th>Notícias</th><th>Situação</th><th></th></tr></thead><tbody>${items.map((u) => `<tr>
-<td><a href="/admin/usuarios/${u.id}"><b>${esc(u.name)}</b></a>${u.id === me ? ' <span class="ajuda">(você)</span>' : ''}<br><span class="ajuda">${esc(u.email)}</span></td>
-<td>${esc(ROLES[u.role]?.nome || u.role)}</td><td>${acesso(u)}</td><td>${u.total}</td>
-<td>${u.active ? '<span class="st published">Ativo</span>' : '<span class="st draft">Desativado</span>'}</td>
+<table class="cards"><thead><tr><th>Nome</th><th>Perfil</th><th>Acesso</th><th>Notícias</th><th>Situação</th><th></th></tr></thead><tbody>${items.map((u) => `<tr>
+<td class="c-titulo"><a href="/admin/usuarios/${u.id}"><b>${esc(u.name)}</b></a>${u.id === me ? ' <span class="ajuda">(você)</span>' : ''}<br><span class="ajuda">${esc(u.email)}</span></td>
+<td data-label="Perfil">${esc(ROLES[u.role]?.nome || u.role)}</td><td data-label="Acesso">${acesso(u)}</td><td data-label="Notícias">${u.total}</td>
+<td data-label="Situação">${u.active ? '<span class="st published">Ativo</span>' : '<span class="st draft">Desativado</span>'}</td>
 <td class="acoes"><a class="btn peq" href="/admin/usuarios/${u.id}">Editar</a>
 ${u.active ? acao(u, 'desativar', 'Desativar', `Desativar ${u.name}? A pessoa sai do painel na hora e não consegue entrar até ser reativada.`) : acao(u, 'ativar', 'Reativar', `Reativar ${u.name}?`)}
 ${acao(u, 'apagar', 'Excluir', `Excluir ${u.name}? As notícias continuam no ar. Não dá para desfazer.`, true)}</td></tr>`).join('')}</tbody></table>

@@ -330,6 +330,7 @@ app.get('/admin/noticias', async (req, res) => {
 const blank = { title: '', summary: '', body: '', category_id: '', columnist_id: '', tags: '', author: '', image: '', image_credit: '', video_url: '', status: 'draft', featured: 0 };
 const renderForm = async (req, res, a, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: a.id ? 'Editar notícia' : 'Nova notícia', crumb: a.id ? 'NOTÍCIAS / EDITAR' : 'NOTÍCIAS / NOVA PUBLICAÇÃO', active: a.id ? '/admin/noticias' : '/admin/noticias/nova',
+    foco: { href: '/admin/noticias', label: 'Notícias' },
     erro: erros.map(V.esc).join('<br>'), body: V.articleForm({ a, cats: await catsDo(req.user), columnists: await allColumnists(), csrf: req.csrf, user: req.user }) }));
 const SEM_CATEGORIA = 'Você ainda não tem nenhuma categoria liberada para escrever. Peça ao administrador do portal.';
 const SO_SUAS = 'Você só pode editar as notícias que criou, dentro das suas categorias, enquanto não forem aprovadas.';
@@ -470,7 +471,7 @@ const blankCol = { name: '', tagline: '', email: '', bio: '', photo: '', faceboo
 const renderColForm = async (req, res, c, erros = [], code = 200) =>
   res.status(code).send(V.adminLayout({ user: req.user, csrf: req.csrf, title: c.id ? 'Editar colunista' : 'Novo colunista', crumb: c.id ? 'COLUNISTAS / EDITAR' : 'COLUNISTAS / NOVO', active: '/admin/colunistas',
     erro: erros.map(V.esc).join('<br>'), body: V.columnistForm({
-      c, csrf: req.csrf,
+      c, csrf: req.csrf, user: req.user,
       arts: c.id ? await all(`${SELECT_A} WHERE a.columnist_id = ? ORDER BY a.updated_at DESC LIMIT 200`, [c.id]) : [],
       books: c.id ? await all('SELECT * FROM columnist_books WHERE columnist_id = ? ORDER BY position, id', [c.id]) : [],
     }) }));

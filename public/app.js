@@ -40,3 +40,10 @@ if (caixa && !noApp && !lembrar.get()) {
 
   caixa.querySelector('[data-fechar]').addEventListener('click', () => { lembrar.set(); esconder(); });
 }
+
+/* gaveta "Mais" do celular: fecha ao tocar fora ou apertar Esc */
+const mais = document.querySelector('.mais');
+if (mais) {
+  mais.querySelector('[data-fechar-mais]').addEventListener('click', () => { mais.open = false; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') mais.open = false; });
+}
