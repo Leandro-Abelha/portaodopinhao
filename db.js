@@ -129,6 +129,9 @@ export const setup = () => (ready ??= (async () => {
   )`);
   await run(`CREATE INDEX IF NOT EXISTS pageviews_created_idx ON pageviews (created_at)`);
   await run(`CREATE INDEX IF NOT EXISTS pageviews_article_idx ON pageviews (article_id)`);
+  /* acessos de robôs ficam guardados à parte (para mostrar quantos são), fora dos números do painel */
+  await run(`ALTER TABLE pageviews ADD COLUMN IF NOT EXISTS is_bot boolean NOT NULL DEFAULT false`);
+  await run(`CREATE INDEX IF NOT EXISTS pageviews_visitor_idx ON pageviews (visitor_hash, created_at)`);
   await run(`CREATE TABLE IF NOT EXISTS events (
     id bigserial PRIMARY KEY, type text NOT NULL, meta text, visitor_hash text, created_at timestamptz DEFAULT now()
   )`);

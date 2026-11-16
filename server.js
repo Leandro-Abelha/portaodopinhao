@@ -101,6 +101,7 @@ async function requireAuth(req, res, next) {
   if (V.can(req.user, 'aprovar')) req.user.pendentes = Number((await one(`SELECT COUNT(*) c FROM articles WHERE review_status = 'pendente'`)).c);
   req.csrf = s.csrf;
   res.set('Cache-Control', 'no-store');
+  res.append('Set-Cookie', `pinhao_equipe=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=${EQUIPE_MS / 1000}${IS_PROD ? '; Secure' : ''}`);
   next();
 }
 function checkCsrf(req, res, next) {
@@ -159,13 +160,29 @@ const cleanLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0,
 /* hash anônimo do visitante: muda todo dia, não guarda IP nem user-agent em texto puro */
 const visitorHash = (req) => crypto.createHash('sha256')
   .update(`${new Date().toISOString().slice(0, 10)}|${req.ip}|${req.headers['user-agent'] || ''}|${process.env.ANALYTICS_SALT || 'pinhao'}`).digest('hex').slice(0, 32);
-const logView = (req, kind, path, articleId = null) =>
-  run('INSERT INTO pageviews (path, kind, article_id, visitor_hash) VALUES (?,?,?,?)', [path, kind, articleId, visitorHash(req)]).catch(() => {});
+/* robôs: buscadores, AdSense, prévias de link (WhatsApp, Facebook…), monitores e scripts.
+   Navegador de verdade sempre se apresenta como "Mozilla/…"; quem não faz isso também é robô. */
+const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|facebookcatalog|meta-externalagent|whatsapp|telegram|skype|discord|slack|linkedin|twitter|pinterest|embedly|mediapartners|adsbot|google-|googleother|feedfetcher|lighthouse|pagespeed|headless|phantom|puppeteer|playwright|selenium|python|curl|wget|go-http|java\/|okhttp|axios|node-fetch|undici|libwww|httpclient|scrapy|ahrefs|semrush|petal|bytespider|gpt|claude|anthropic|perplexity|ccbot|uptime|monitor|pingdom|statuscake|vercel/i;
+const isBot = (req) => { const ua = req.headers['user-agent'] || ''; return !/^Mozilla\//.test(ua) || BOT_UA.test(ua); };
+/* aparelho da equipe: marcado ao usar o painel, deixa de contar no site */
+const EQUIPE_MS = 1000 * 60 * 60 * 24 * 30;
+const daEquipe = (req) => parseCookies(req.headers.cookie).pinhao_equipe === '1';
+const preCarga = (req) => /prefetch|prerender/i.test(`${req.headers['sec-purpose'] || ''} ${req.headers.purpose || ''}`);
+/* Conta uma visualização por pessoa, por página, a cada 30 minutos (recarregar não soma de novo).
+   Robôs são gravados marcados, só para o painel mostrar quantos foram. */
+function logView(req, kind, path, articleId = null) {
+  if (daEquipe(req) || preCarga(req)) return;
+  const hash = visitorHash(req);
+  if (isBot(req)) { run('INSERT INTO pageviews (path, kind, article_id, visitor_hash, is_bot) VALUES (?,?,?,?,true)', [path, kind, articleId, hash]).catch(() => {}); return; }
+  run(`INSERT INTO pageviews (path, kind, article_id, visitor_hash)
+    SELECT ?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE visitor_hash = ? AND path = ? AND NOT is_bot AND created_at > now() - interval '30 minutes')`,
+  [path, kind, articleId, hash, hash, path]).catch(() => {});
+}
 const EVENT_TYPES = ['social_click', 'share_click'];
 app.post('/evento', express.json({ limit: '2kb' }), (req, res) => {
   const tipo = cleanLine(req.body?.tipo, 40);
   const meta = cleanLine(req.body?.meta, 60);
-  if (EVENT_TYPES.includes(tipo)) run('INSERT INTO events (type, meta, visitor_hash) VALUES (?,?,?)', [tipo, meta, visitorHash(req)]).catch(() => {});
+  if (EVENT_TYPES.includes(tipo) && !isBot(req) && !daEquipe(req)) run('INSERT INTO events (type, meta, visitor_hash) VALUES (?,?,?)', [tipo, meta, visitorHash(req)]).catch(() => {});
   res.status(204).end();
 });
 
@@ -303,18 +320,20 @@ app.get('/admin/estatisticas', async (req, res) => {
   const HOJE = desde(`date_trunc('day', now())`);
   const D7 = desde(`now() - interval '7 days'`);
   const D30 = desde(`now() - interval '30 days'`);
-  const total = async (w) => Number((await one(`SELECT COUNT(*) c FROM pageviews WHERE ${w}`)).c);
-  const uniq = async (w) => Number((await one(`SELECT COUNT(DISTINCT visitor_hash) c FROM pageviews WHERE ${w}`)).c);
+  const total = async (w) => Number((await one(`SELECT COUNT(*) c FROM pageviews WHERE NOT is_bot AND ${w}`)).c);
+  const uniq = async (w) => Number((await one(`SELECT COUNT(DISTINCT visitor_hash) c FROM pageviews WHERE NOT is_bot AND ${w}`)).c);
   const stats = {
     viewsHoje: await total(HOJE), viewsD7: await total(D7), viewsD30: await total(D30),
     visitantesHoje: await uniq(HOJE), visitantesD7: await uniq(D7), visitantesD30: await uniq(D30),
+    robosD7: Number((await one(`SELECT COUNT(*) c FROM pageviews WHERE is_bot AND ${D7}`)).c),
+    filtroDesde: (await one(`SELECT MIN(created_at) d FROM pageviews WHERE is_bot`))?.d || null,
   };
   const topArtigos = await all(`SELECT a.id, a.title, a.slug, c.name cat_name, COUNT(*)::int views
     FROM pageviews p JOIN articles a ON a.id = p.article_id LEFT JOIN categories c ON c.id = a.category_id
-    WHERE p.${D7} GROUP BY a.id, c.name ORDER BY views DESC LIMIT 10`);
+    WHERE NOT p.is_bot AND p.${D7} GROUP BY a.id, c.name ORDER BY views DESC LIMIT 10`);
   const porDia = await all(`SELECT (created_at AT TIME ZONE 'America/Sao_Paulo')::date::text dia, COUNT(*)::int c
-    FROM pageviews WHERE ${D30} GROUP BY dia ORDER BY dia`);
-  const porPagina = await all(`SELECT kind, COUNT(*)::int c FROM pageviews WHERE ${D7} GROUP BY kind ORDER BY c DESC`);
+    FROM pageviews WHERE NOT is_bot AND ${D30} GROUP BY dia ORDER BY dia`);
+  const porPagina = await all(`SELECT kind, COUNT(*)::int c FROM pageviews WHERE NOT is_bot AND ${D7} GROUP BY kind ORDER BY c DESC`);
   const conversoes = await all(`SELECT type, meta, COUNT(*)::int c FROM events WHERE ${D7} GROUP BY type, meta ORDER BY c DESC`);
   const nomes = Object.fromEntries((await socialRows()).map((r) => [r.network, V.networkName(r)]));
   page(req, res, { title: 'Estatísticas', crumb: 'ESTATÍSTICAS', active: '/admin/estatisticas', body: V.statsView({ stats, topArtigos, porDia, porPagina, conversoes, nomes }), ...flash(req) });

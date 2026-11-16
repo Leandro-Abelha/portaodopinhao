@@ -290,6 +290,7 @@ export function statsView({ stats, topArtigos, porDia, porPagina, conversoes, no
 <div><b>${stats.viewsD30}</b><span>Visualizações (30 dias)</span></div>
 <div><b>${stats.visitantesD7}</b><span>Visitantes únicos (7 dias)</span></div>
 </div>
+<p class="ajuda nota-contagem">Contam só pessoas de verdade: robôs (Google, AdSense, prévias do WhatsApp e do Facebook) e os aparelhos da equipe ficam de fora, e recarregar a mesma página em 30 minutos não soma de novo.${stats.filtroDesde ? ` Filtro ativo desde ${fmtShort(stats.filtroDesde)}; antes disso os números incluem esses acessos.` : ''} <b>Robôs barrados nos últimos 7 dias: ${stats.robosD7}.</b></p>
 
 <h2>Visualizações por dia (30 dias)</h2>
 ${porDia.length ? `<div class="grafico" role="img" aria-label="Gráfico de visualizações por dia">${porDia.map((d) => `<div class="barra-dia" style="height:${Math.max(3, Math.round(d.c / maxDia * 100))}%"><span class="barra-valor">${d.c}</span><span class="barra-rotulo">${diaCurto(d.dia)}</span></div>`).join('')}</div>` : `<p class="vazio">Ainda não há dados de visualização.</p>`}
